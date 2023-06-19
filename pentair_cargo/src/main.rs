@@ -4,10 +4,12 @@ use hyper::{Request, Response, body::Bytes, service::service_fn};
 use hyper::server::conn::http1;
 use tokio::net::TcpListener;
 
+mod config;
+
 async fn hello(
     _: Request<hyper::body::Incoming>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
-    Ok(Response::new(Full::new(Bytes::from("Hello World!"))))
+    Ok(Response::new(Full::new(Bytes::from("Pentair Configuration!"))))
 }
 
 #[tokio::main]
