@@ -1,0 +1,20 @@
+{
+    "controller": {
+        "comms" :{
+            "type" : "local"
+            "portId": 0,
+            "enabled": true,
+            "rs485Port": "/dev/ttyUSB0"
+        },
+        "backups": {
+            "automatic": false,
+            "interval": {
+                "days": 30,
+                "hours": 0
+            },
+            "keepCount": 5,
+            "njsPC":  true,
+            "servers": []
+            }
+    },
+}

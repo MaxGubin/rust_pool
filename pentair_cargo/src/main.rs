@@ -14,6 +14,9 @@ async fn hello(
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+    let config_path = std::env::args().nth(1).unwrap_or_default("");
+    let config = config::read_configuration(config_path)?;
+    
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 
     let listener = TcpListener::bind(addr).await?;
