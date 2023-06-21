@@ -1,5 +1,14 @@
 {
     "rust-analyzer.linkedProjects": [
         "./pentair_cargo/Cargo.toml"
+    ],
+    "spellright.language": [
+        "en-US-10-1."
+    ],
+    "spellright.documentTypes": [
+        "markdown",
+        "latex",
+        "plaintext",
+        "rust"
     ]
 }
