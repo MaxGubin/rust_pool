@@ -3,6 +3,7 @@ use http_body_util::Full;
 use hyper::{Request, Response, body::Bytes, service::service_fn};
 use hyper::server::conn::http1;
 use tokio::net::TcpListener;
+use std::path::Path;
 
 mod config;
 
@@ -14,8 +15,8 @@ async fn hello(
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    let config_path = std::env::args().nth(1).unwrap_or_default("");
-    let config = config::read_configuration(config_path)?;
+    let config_path = std::env::args().nth(1).unwrap_or_else(|| String::from("config.json"));
+    let _config = config::read_configuration(Path::new(&config_path))?;
     
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 
