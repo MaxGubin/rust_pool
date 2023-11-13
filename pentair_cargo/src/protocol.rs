@@ -1,5 +1,6 @@
 extern crate serial;
 
+
 pub fn serial_port() -> serial::SystemPort {
     let port = serial::open("/dev/ttyUSB0").unwrap();
     port.reconfigure(&|settings| {

@@ -1,3 +1,5 @@
+
+use serde::{Deserialize, Serialize};
 // Controller structure.
 
 #[derive(Serialize, Deserialize, Debug)]
