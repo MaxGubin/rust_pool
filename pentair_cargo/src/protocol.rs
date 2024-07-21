@@ -1,16 +1,22 @@
-extern crate serial;
+
+use serialport::prelude::*;
 
 
 pub fn serial_port() -> serial::SystemPort {
-    let port = serial::open("/dev/ttyUSB0").unwrap();
-    port.reconfigure(&|settings| {
-        try!(settings.set_baud_rate(serial::Baud9600));
-        try!(settings.set_char_size(serial::Bits8));
-        try!(settings.set_parity(serial::ParityNone));
-        try!(settings.set_stop_bits(serial::Stop1));
-        try!(settings.set_flow_control(serial::FlowNone));
-        Ok(())
-    })?;
+
+    let port_name = "/dev/ttyUSB0";
+    let settings = serial::PortSettings {
+        baud_rate: serial::Baud9600,
+        char_size: serial::Bits8,
+        parity: serial::ParityNone,
+        stop_bits: serial::Stop1,
+        flow_control: serial::FlowNone,
+    };
+    
+    match serial::open_with_settings(port_name, &settings) {
+        Ok(port) => port,
+        Err(e) => eprintln!("{:?}", e),
+    }
     port
 }
 
@@ -25,6 +31,42 @@ enum PentairDevice {
     Heater,
     Solar,
 }
+
+enum MessageCode {
+    MSG_CODE_1 = 0,
+    ERROR_LOGIN_REJECTED = 13,
+    CHALLENGE_QUERY = 14,
+    PING_QUERY = 16,
+    LOCALLOGIN_QUERY = 27,
+    ERROR_INVALID_REQUEST = 30
+    ERROR_BAD_PARAMETER = 31  # Actually bad parameter?
+    FIRMWARE_QUERY = 8058
+    GET_DATETIME_QUERY = 8110
+    SET_DATETIME_QUERY = 8112
+    VERSION_QUERY = 8120
+    WEATHER_FORECAST_CHANGED = 9806
+    WEATHER_FORECAST_QUERY = 9807
+    STATUS_CHANGED = 12500
+    COLOR_UPDATE = 12504
+    CHEMISTRY_CHANGED = 12505
+    ADD_CLIENT_QUERY = 12522
+    REMOVE_CLIENT_QUERY = 12524
+    POOLSTATUS_QUERY = 12526
+    SETHEATTEMP_QUERY = 12528
+    BUTTONPRESS_QUERY = 12530
+    CTRLCONFIG_QUERY = 12532
+    SETHEATMODE_QUERY = 12538
+    LIGHTCOMMAND_QUERY = 12556
+    SETCHEMDATA_QUERY = 12594
+    EQUIPMENT_QUERY = 12566
+    SCGCONFIG_QUERY = 12572
+    SETSCG_QUERY = 12576
+    PUMPSTATUS_QUERY = 12584
+    SETCOOLTEMP_QUERY = 12590
+    CHEMISTRY_QUERY = 12592
+    GATEWAYDATA_QUERY = 18003
+}
+
 struct PentairMessage {
     destination: u8,
     source: u8,
