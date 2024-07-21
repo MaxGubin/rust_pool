@@ -5,10 +5,13 @@ use serde::{Deserialize, Serialize};
 pub struct Controller {
     
 }
+
+fn default_enabled() -> bool { true }
+
 #[derive(Serialize, Deserialize)]
 pub struct Comms {
-    pub message_type: String,
     pub port: u32,
+    #[serde(default="default_enabled")]
     pub enabled: bool,
     
 }
