@@ -1,11 +1,13 @@
-use std::{convert::Infallible, net::SocketAddr, error::Error};
 use http_body_util::Full;
-use hyper::{Request, Response, body::Bytes, service::service_fn};
 use hyper::server::conn::http1;
-use tokio::net::TcpListener;
+use hyper::{Request, Response, body::Bytes, service::service_fn};
+use log::{info, trace, warn, error};
 use std::path::Path;
+use std::{convert::Infallible, net::SocketAddr, error::Error};
+use tokio::net::TcpListener;
 
 mod config;
+mod protocol;
 
 async fn hello(
     _: Request<hyper::body::Incoming>,
@@ -15,13 +17,20 @@ async fn hello(
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+    trace!("Starting up");
     let config_path = std::env::args().nth(1).unwrap_or_else(|| String::from("config.json"));
-    let _config = config::read_configuration(Path::new(&config_path))?;
-    
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let config = config::read_configuration(Path::new(&config_path))?;
+    trace!("Configuration loaded: {:?}", config);
+
+    let _serial_port: serial::SystemPort  = serial_port(config.port_parameters);
+    trace!("Serial port opened");
+
+    let addr: SocketAddr = config.comms.listen_address.parse().expect("Invalid listen address");
+
+
 
     let listener = TcpListener::bind(addr).await?;
-
+    info!("Listening on: {}", addr);
     loop {
         let (stream, _) = listener.accept().await?;
 
@@ -30,7 +39,7 @@ pub async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 .serve_connection(stream, service_fn(hello))
                 .await
             {
-                println!("Error serving connection: {:?}", err);
+                error!("Error serving connection: {:?}", err);
             }
         });
     }
