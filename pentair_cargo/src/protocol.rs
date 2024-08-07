@@ -2,14 +2,14 @@
 use serialport::prelude::*;
 
 
-pub fn serial_port() -> serial::SystemPort {
+pub fn serial_port(parameters: &PortParameters) -> serial::SystemPort {
 
-    let port_name = "/dev/ttyUSB0";
+    let port_name = &parameters.port_name;
     let settings = serial::PortSettings {
-        baud_rate: serial::Baud9600,
-        char_size: serial::Bits8,
-        parity: serial::ParityNone,
-        stop_bits: serial::Stop1,
+        baud_rate: parameters.baud_rate,
+        char_size: parameters.char_size,
+        parity: parameters.parity,
+        stop_bits: parameters.stop_bits,
         flow_control: serial::FlowNone,
     };
     
@@ -38,32 +38,32 @@ enum MessageCode {
     CHALLENGE_QUERY = 14,
     PING_QUERY = 16,
     LOCALLOGIN_QUERY = 27,
-    ERROR_INVALID_REQUEST = 30
-    ERROR_BAD_PARAMETER = 31  # Actually bad parameter?
-    FIRMWARE_QUERY = 8058
-    GET_DATETIME_QUERY = 8110
-    SET_DATETIME_QUERY = 8112
-    VERSION_QUERY = 8120
-    WEATHER_FORECAST_CHANGED = 9806
-    WEATHER_FORECAST_QUERY = 9807
-    STATUS_CHANGED = 12500
-    COLOR_UPDATE = 12504
-    CHEMISTRY_CHANGED = 12505
-    ADD_CLIENT_QUERY = 12522
-    REMOVE_CLIENT_QUERY = 12524
-    POOLSTATUS_QUERY = 12526
-    SETHEATTEMP_QUERY = 12528
-    BUTTONPRESS_QUERY = 12530
-    CTRLCONFIG_QUERY = 12532
-    SETHEATMODE_QUERY = 12538
-    LIGHTCOMMAND_QUERY = 12556
-    SETCHEMDATA_QUERY = 12594
-    EQUIPMENT_QUERY = 12566
-    SCGCONFIG_QUERY = 12572
-    SETSCG_QUERY = 12576
-    PUMPSTATUS_QUERY = 12584
-    SETCOOLTEMP_QUERY = 12590
-    CHEMISTRY_QUERY = 12592
+    ERROR_INVALID_REQUEST = 30,
+    ERROR_BAD_PARAMETER = 31,  // Actually bad parameter?
+    FIRMWARE_QUERY = 8058,
+    GET_DATETIME_QUERY = 8110,
+    SET_DATETIME_QUERY = 8112,
+    VERSION_QUERY = 8120,
+    WEATHER_FORECAST_CHANGED = 9806,
+    WEATHER_FORECAST_QUERY = 9807,
+    STATUS_CHANGED = 12500,
+    COLOR_UPDATE = 12504,
+    CHEMISTRY_CHANGED = 12505,
+    ADD_CLIENT_QUERY = 12522,
+    REMOVE_CLIENT_QUERY = 12524,
+    POOLSTATUS_QUERY = 12526,
+    SETHEATTEMP_QUERY = 12528,
+    BUTTONPRESS_QUERY = 12530,
+    CTRLCONFIG_QUERY = 12532,
+    SETHEATMODE_QUERY = 12538,
+    LIGHTCOMMAND_QUERY = 12556,
+    SETCHEMDATA_QUERY = 12594,
+    EQUIPMENT_QUERY = 12566,
+    SCGCONFIG_QUERY = 12572,
+    SETSCG_QUERY = 12576,
+    PUMPSTATUS_QUERY = 12584,
+    SETCOOLTEMP_QUERY = 12590,
+    CHEMISTRY_QUERY = 12592,
     GATEWAYDATA_QUERY = 18003
 }
 
@@ -76,8 +76,8 @@ struct PentairMessage {
 }
 
 pub fn decode_serial(data: &[u8]) -> Result<(), serial::Error> {
-    const preambl: [u8;4] = {0x00, 0xFF, 0xA5};
-    if data[0..3] != preamblu {
+    const PREAMBL: [u8;3] = [0x00, 0xFF, 0xA5];
+    if data[0..3] != PREAMBL {
         return Err(serial::Error::new(serial::ErrorKind::InvalidInput, "Invalid preamble"));
     }
     if data[4] != 0x00 || data[4] != 0x01{
