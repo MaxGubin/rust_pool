@@ -18,11 +18,19 @@ async fn hello(
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     trace!("Starting up");
+    println!(
+        "User's Name            whoami::realname():    {}",
+        whoami::realname(),
+    ); 
+    println!(
+        "User's Username        whoami::username():    {}",
+        whoami::username(),
+    );
     let config_path = std::env::args().nth(1).unwrap_or_else(|| String::from("config.json"));
     let config = config::read_configuration(Path::new(&config_path))?;
     trace!("Configuration loaded: {:?}", config);
 
-    let _serial_port: serial::SystemPort  = serial_port(config.port_parameters);
+    let _serial_port: serial::SystemPort  = protocol::serial_port(&config.port_parameters);
     trace!("Serial port opened");
 
     let addr: SocketAddr = config.comms.listen_address.parse().expect("Invalid listen address");

@@ -1,28 +1,26 @@
 
-use serialport::prelude::*;
+use serial::{self, SerialPort};
+use crate::config;
 
 
-pub fn serial_port(parameters: &PortParameters) -> serial::SystemPort {
+
+
+pub fn serial_port(parameters: &config::config_json::PortParameters) -> serial::SystemPort {
 
     let port_name = &parameters.port_name;
+     
     let settings = serial::PortSettings {
-        baud_rate: parameters.baud_rate,
-        char_size: parameters.char_size,
-        parity: parameters.parity,
-        stop_bits: parameters.stop_bits,
+        baud_rate: serial::BaudRate::from_speed(parameters.baud_rate),
+        char_size: config::config_json::decode_char_size(parameters.char_size),
+        parity: config::config_json::decode_parity(parameters.parity.as_str()),
+        stop_bits: config::config_json::decode_stop_bits(parameters.stop_bits),
         flow_control: serial::FlowNone,
     };
     
-    match serial::open_with_settings(port_name, &settings) {
-        Ok(port) => port,
-        Err(e) => eprintln!("{:?}", e),
-    }
-    port
-}
-
-
-pub fn serial_write(port: serial::SystemPort, data: &[u8]) -> Result<(), serial::Error> {
-    port.write(data)
+    
+     let mut port = serial::open(port_name).unwrap();
+     port.configure(&settings);
+     port
 }
 
 enum PentairDevice {
@@ -32,6 +30,7 @@ enum PentairDevice {
     Solar,
 }
 
+/* 
 enum MessageCode {
     MSG_CODE_1 = 0,
     ERROR_LOGIN_REJECTED = 13,
@@ -66,6 +65,7 @@ enum MessageCode {
     CHEMISTRY_QUERY = 12592,
     GATEWAYDATA_QUERY = 18003
 }
+*/
 
 struct PentairMessage {
     destination: u8,
@@ -73,25 +73,4 @@ struct PentairMessage {
     command: u8,
     data: u8,
     checksum: u8,
-}
-
-pub fn decode_serial(data: &[u8]) -> Result<(), serial::Error> {
-    const PREAMBL: [u8;3] = [0x00, 0xFF, 0xA5];
-    if data[0..3] != PREAMBL {
-        return Err(serial::Error::new(serial::ErrorKind::InvalidInput, "Invalid preamble"));
-    }
-    if data[4] != 0x00 || data[4] != 0x01{
-        return Err(serial::Error::new(serial::ErrorKind::InvalidInput, "Invalid version"));
-    }
-    let destination = decode_device(data[5]);
-
-}
-
-pub fn serial_read(port: serial::SystemPort, buf: &mut [u8]) -> Result<usize, serial::Error> {
-    let mut serial_buf: Vec<u8> = vec![0; 1000];
-    match port.read(serial_buf) {
-        Ok(count) => Ok(count),
-        Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
-        Err(e) => eprintln!("{:?}", e),   
-    }
 }

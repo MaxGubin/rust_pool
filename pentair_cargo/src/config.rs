@@ -6,7 +6,7 @@ use std::path;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-mod config_json;
+pub mod config_json;
 mod controller;
 
 
@@ -32,6 +32,6 @@ mod tests {
     #[test]
     fn test_read_configuration() {
         let config = read_configuration(path::Path::new("config.json")).unwrap();
-        assert_eq!(config.comms.listen_address, "127.0.0.1:8080");
+        assert_eq!(config.comms.listen_address, "127.0.0.1:3000");
     }
 }
