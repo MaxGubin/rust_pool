@@ -17,3 +17,5 @@ serial = "0.4.0"
 serialport = "4.3.0"
 log = "0.4.22"
 whoami = "1.5.1"
+clap = { version = "4.5.14", features = ["derive"] }
+simplelog = "0.12.2"
