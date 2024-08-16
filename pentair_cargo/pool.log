@@ -1,0 +1,6 @@
+00:32:05 [TRACE] (1) pentair_cargo: [src/main.rs:59] Starting up
+00:32:16 [INFO] User's Name            whoami::realname():    Max
+00:32:21 [INFO] User's Username        whoami::username():    max
+00:32:37 [TRACE] (1) pentair_cargo: [src/main.rs:69] Configuration loaded: PoolConfig { comms: Comms { listen_address: "127.0.0.1:3000", enabled: true }, port_parameters: PortParameters { port_name: "/dev/ttyUSB0", baud_rate: 9600, char_size: 8, parity: "None", stop_bits: 1, timeout_msec: 1000 } }
+00:39:28 [TRACE] (1) pentair_cargo: [src/main.rs:73] Serial port opened
+00:39:32 [INFO] Listening on: 127.0.0.1:3000

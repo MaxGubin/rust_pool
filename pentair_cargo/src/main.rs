@@ -6,35 +6,36 @@ use log::{error, info, trace};
 use simplelog::{CombinedLogger, Config, LevelFilter, SharedLogger, SimpleLogger, WriteLogger};
 use std::fs::File;
 use std::path::PathBuf;
-use std::{convert::Infallible, env, error::Error, net::SocketAddr};
+use std::sync::{Arc, RwLock};
+use std::{convert::Infallible, error::Error, net::SocketAddr};
 use tokio::net::TcpListener;
+
+// A thread/
+type PoolProtocolRW = Arc<RwLock<protocol::PoolProtocol>>;
 
 mod config;
 mod protocol;
 
-// Default values for input arguments.
-fn default_config() -> PathBuf {
-    let mut path = env::current_exe().unwrap();
-    path.pop();
-    path.push("config.json");
-    path
-}
-
 // Command line arguments
 #[derive(Parser)]
 struct Cli {
-    #[arg(short, long, default_value = "default_config()")]
+    #[arg(short, long, default_value = "config.json")]
     config: PathBuf,
 
     ///
-    #[arg(short, long, action = clap::ArgAction::Count)]
+    #[arg(short, long, default_value = "5")]
     verbosity: u8,
 
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "true")]
     logtostderr: bool,
 }
 
-async fn hello(_: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+async fn serve_status(
+    _: Request<hyper::body::Incoming>,
+    pool_protocol: PoolProtocolRW,
+) -> Result<Response<Full<Bytes>>, Infallible> {
+    // Read the current state
+    let _pool_state = pool_protocol.write().unwrap().get_status();
     Ok(Response::new(Full::new(Bytes::from(
         "Pentair Configuration!",
     ))))
@@ -76,29 +77,43 @@ fn main() {
     let config = config::read_configuration(&args.config).expect("Failed to read configuration");
     trace!("Configuration loaded: {:?}", config);
 
-    let _serial_port: serial::SystemPort =
-        protocol::serial_port(&config.port_parameters).expect("Failed to open serial port");
+    let pool_protocol = PoolProtocolRW::new(RwLock::new(protocol::PoolProtocol::new(
+        protocol::serial_port(&config.port_parameters).expect("Failed to open serial port"),
+    )));
     trace!("Serial port opened");
 
     // Serve an echo service over HTTPS, with proper error handling.
-    if let Err(e) = run_server(&config.comms.listen_address) {
+    if let Err(e) = run_server(&config.comms.listen_address, &pool_protocol) {
         error!("FAILED: {}", e);
         std::process::exit(1);
     }
 }
 
 #[tokio::main]
-pub async fn run_server(address: &String) -> Result<(), Box<dyn Error + Send + Sync>> {
+pub async fn run_server(
+    address: &String,
+    pool_protocol: &PoolProtocolRW,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     let addr: SocketAddr = address.parse().expect("Invalid listen address");
 
     let listener = TcpListener::bind(addr).await?;
     info!("Listening on: {}", addr);
     loop {
         let (stream, _) = listener.accept().await?;
+        // Create a clone for the closure inside the async block.
+        let pool_protocol = pool_protocol.clone();
 
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
-                .serve_connection(stream, service_fn(hello))
+                .serve_connection(
+                    stream,
+                    service_fn(move |request| {
+                        serve_status(
+                            request,
+                            /*Clone again to async serving function*/ pool_protocol.clone(),
+                        )
+                    }),
+                )
                 .await
             {
                 error!("Error serving connection: {:?}", err);

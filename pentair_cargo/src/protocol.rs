@@ -1,7 +1,6 @@
-use serial::{self, SerialPort};
-use std::io::{Read};
-
 use crate::config;
+use serial::{self, Error, SerialPort};
+use std::io::Read;
 
 pub fn serial_port(
     parameters: &config::config_json::PortParameters,
@@ -23,9 +22,9 @@ pub fn serial_port(
 
 fn read_to_header(port: &mut serial::SystemPort) -> Result<(), serial::Error> {
     const HEADER: [u8; 4] = [0xFF, 0x00, 0xFF, 0xA5];
+    let mut byte = [0; 1];
     let mut buffer = Vec::with_capacity(HEADER.len());
     loop {
-        let mut byte = [0; 1];
         port.read(&mut byte[..])?;
         buffer.push(byte[0]);
         if buffer.len() == HEADER.len() {
@@ -40,32 +39,33 @@ fn read_to_header(port: &mut serial::SystemPort) -> Result<(), serial::Error> {
 }
 
 fn read_packet(port: &mut serial::SystemPort) -> Result<Vec<u8>, serial::Error> {
-    read_to_header(port);
+    read_to_header(port)?;
     let mut buffer: Vec<u8> = Vec::new();
     buffer.push(0xA5);
+    let mut byte: [u8; 1] = [0];
     for _ in 0..4 {
-        let mut byte = [0; 1];
         port.read(&mut byte[..])?;
         buffer.push(byte[0]);
     }
     let to_read_len = buffer[4] as usize;
     for _ in 0..to_read_len {
-        let mut byte = [0; 1];
         port.read(&mut byte[..])?;
         buffer.push(byte[0]);
     }
 
     // Checksum
-    let mut byte = [0; 1];
     port.read(&mut byte[..])?;
-    let mut checksum = 256 * (byte[0] as usize);
+    let mut checksum: u16 = 256 * (byte[0] as u16);
     port.read(&mut byte[..])?;
-    checksum += byte[0] as usize;
+    checksum += byte[0] as u16;
     for b in buffer.iter() {
-        checksum -= *b as usize;
+        checksum -= *b as u16;
     }
     if checksum != 0 {
-        panic!("Checksum error");
+        return Err(serial::Error::new(
+            serial::ErrorKind::InvalidInput,
+            "Checksum error",
+        ));
     }
 
     Ok(buffer)
@@ -115,9 +115,9 @@ impl SystemState {
             solar_temp: 0,
         }
     }
-    pub fn from_packet(packet: &Vec<u8>) -> SystemState {
+    pub fn from_packet(packet: Vec<u8>) -> SystemState {
         if packet.len() < 7 {
-           return Self::from_error(serial::Error::new(
+            return Self::from_error(serial::Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Packet too short",
             ));
@@ -168,93 +168,48 @@ impl SystemState {
             state.aux_circuits.push((packet[MASK_IDX] & AUX3_MASK) != 0);
             state
                 .feature_circuits
-                .push((packet[MASK_IDX] & FEATURE1_MASK)!=0);
+                .push((packet[MASK_IDX] & FEATURE1_MASK) != 0);
             state
                 .feature_circuits
-                .push((packet[MASK_IDX] & FEATURE2_MASK)!=0);
+                .push((packet[MASK_IDX] & FEATURE2_MASK) != 0);
             state
                 .feature_circuits
-                .push((packet[MASK_IDX] & FEATURE3_MASK)!=0);
+                .push((packet[MASK_IDX] & FEATURE3_MASK) != 0);
         }
 
         state
     }
 }
 
-pub fn get_status(port: &mut serial::SystemPort) -> SystemState {
-    match read_packet(port) {
-        Ok(packet) => {
-            let mut state = SystemState::new();
-            let mut i = 5;
-            state.pool_on = (packet[i] & 0x01) != 0;
-            state.spa_on = (packet[i] & 0x02) != 0;
-            i += 1;
-            for _ in 0..8 {
-                state.feature_circuits.push((packet[i] & 0x01) != 0);
-                i += 1;
-            }
-            state.water_temp = packet[i] as u32;
-            i += 1;
-            state.air_temp = packet[i] as u32;
-            i += 1;
-            state.solar_temp = packet[i] as u32;
-            i += 1;
-            return state;
-        }
-        Err(e) => {
-            return SystemState::from_error(e);
+pub struct PoolProtocol {
+    port: serial::SystemPort,
+}
+
+impl PoolProtocol {
+    pub fn new(port: serial::SystemPort) -> PoolProtocol {
+        PoolProtocol { port: port }
+    }
+
+    pub fn get_status(&mut self) -> SystemState {
+        let packet = read_packet(&mut self.port);
+        match packet {
+            Ok(p) => SystemState::from_packet(p),
+            Err(e) => SystemState::from_error(e),
         }
     }
 }
 
-enum PentairDevice {
-    Controller,
-    Pump,
-    Heater,
-    Solar,
-}
-
-/*
-enum MessageCode {
-    MSG_CODE_1 = 0,
-    ERROR_LOGIN_REJECTED = 13,
-    CHALLENGE_QUERY = 14,
-    PING_QUERY = 16,
-    LOCALLOGIN_QUERY = 27,
-    ERROR_INVALID_REQUEST = 30,
-    ERROR_BAD_PARAMETER = 31,  // Actually bad parameter?
-    FIRMWARE_QUERY = 8058,
-    GET_DATETIME_QUERY = 8110,
-    SET_DATETIME_QUERY = 8112,
-    VERSION_QUERY = 8120,
-    WEATHER_FORECAST_CHANGED = 9806,
-    WEATHER_FORECAST_QUERY = 9807,
-    STATUS_CHANGED = 12500,
-    COLOR_UPDATE = 12504,
-    CHEMISTRY_CHANGED = 12505,
-    ADD_CLIENT_QUERY = 12522,
-    REMOVE_CLIENT_QUERY = 12524,
-    POOLSTATUS_QUERY = 12526,
-    SETHEATTEMP_QUERY = 12528,
-    BUTTONPRESS_QUERY = 12530,
-    CTRLCONFIG_QUERY = 12532,
-    SETHEATMODE_QUERY = 12538,
-    LIGHTCOMMAND_QUERY = 12556,
-    SETCHEMDATA_QUERY = 12594,
-    EQUIPMENT_QUERY = 12566,
-    SCGCONFIG_QUERY = 12572,
-    SETSCG_QUERY = 12576,
-    PUMPSTATUS_QUERY = 12584,
-    SETCOOLTEMP_QUERY = 12590,
-    CHEMISTRY_QUERY = 12592,
-    GATEWAYDATA_QUERY = 18003
-}
-*/
-
-struct PentairMessage {
-    destination: u8,
-    source: u8,
-    command: u8,
-    data: u8,
-    checksum: u8,
+#[cfg(test)]
+#[test]
+fn test_system_state_from_packet() {
+    let packet = vec![0xFF, 0x00, 0xFF, 0xA5, 0x00, 0x0F, 0x10, 0x02, 0x01];
+    let state = SystemState::from_packet(packet);
+    assert_eq!(state.pool_on, true);
+    assert_eq!(state.spa_on, false);
+    assert_eq!(state.aux_circuits[0], true);
+    assert_eq!(state.aux_circuits[1], false);
+    assert_eq!(state.aux_circuits[2], false);
+    assert_eq!(state.feature_circuits[0], false);
+    assert_eq!(state.feature_circuits[1], false);
+    assert_eq!(state.feature_circuits[2], false);
 }
