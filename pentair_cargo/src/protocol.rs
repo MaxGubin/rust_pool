@@ -41,7 +41,6 @@ fn read_to_header(port: &mut serial::SystemPort) -> Result<(), serial::Error> {
 fn read_packet(port: &mut serial::SystemPort) -> Result<Vec<u8>, serial::Error> {
     read_to_header(port)?;
     let mut buffer: Vec<u8> = Vec::new();
-    buffer.push(0xA5);
     let mut byte: [u8; 1] = [0];
     for _ in 0..4 {
         port.read(&mut byte[..])?;
@@ -122,7 +121,7 @@ impl SystemState {
                 "Packet too short",
             ));
         }
-        const PROTOCOL_OFFSET: usize = 1;
+        const PROTOCOL_OFFSET: usize = 0;
         if packet[PROTOCOL_OFFSET] != 0x00 || packet[PROTOCOL_OFFSET] != 0x01 {
             return Self::from_error(serial::Error::new(
                 serial::ErrorKind::InvalidInput,
@@ -130,7 +129,7 @@ impl SystemState {
             ));
         }
 
-        const DEST_OFFSET: usize = 2;
+        const DEST_OFFSET: usize = 1;
         const SRC_OFFSET: usize = 3;
         if packet[DEST_OFFSET] != 0x0f || packet[SRC_OFFSET] != 0x10 {
             return Self::from_error(serial::Error::new(
@@ -139,7 +138,7 @@ impl SystemState {
             ));
         }
 
-        const CMD_OFFSET: usize = 4;
+        const CMD_OFFSET: usize = 3;
         const SYSTEM_STATUS_CMD: u8 = 0x02;
         if packet[CMD_OFFSET] != SYSTEM_STATUS_CMD {
             return Self::from_error(serial::Error::new(
@@ -150,7 +149,7 @@ impl SystemState {
 
         let mut state = Self::new();
 
-        const MASK_IDX: usize = 8;
+        const MASK_IDX: usize = 7;
         const SPA_MASK: u8 = 0x01;
         const AUX1_MASK: u8 = 0x02;
         const AUX2_MASK: u8 = 0x04;
@@ -202,7 +201,18 @@ impl PoolProtocol {
 #[cfg(test)]
 #[test]
 fn test_system_state_from_packet() {
-    let packet = vec![0xFF, 0x00, 0xFF, 0xA5, 0x00, 0x0F, 0x10, 0x02, 0x01];
+    let packet = vec![
+        0x01,0x00,0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x3C, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x53, 0x00, 0x00, 0x00,
+        0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+        0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5F,0x00, 0x00, 0x00, 0x3C,0x00,
+        0x00, 0x00,0x03, 0x00, 0x00, 0x00, 0x0b, 0x00, 0x00, 0x00,0xf4, 0x01,
+        0x00,0x00,0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf5, 0x01,
+        0x00,0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,];
+        
+        // \\x00\\xf6\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x02\\x00\\xf7\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x06\\x01\\n\\x00\\xf8\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xf9\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfa\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfb\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfc\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfe\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x02\\x00\\x00\\x1f\\x03\\x00\\x00\\xff\\xff\\xff\\xff\\x00\\x00\\x00\\x00\\x06\\x00\\x00\\x00\\x07\\x00\\x00\\x00\\x00\\x00\\x00\\x00'"
+
     let state = SystemState::from_packet(packet);
     assert_eq!(state.pool_on, true);
     assert_eq!(state.spa_on, false);
