@@ -1,14 +1,19 @@
 use clap::Parser;
-use http_body_util::Full;
-use hyper::server::conn::http1;
-use hyper::{body::Bytes, service::service_fn, Request, Response};
 use log::{error, info, trace};
 use simplelog::{CombinedLogger, Config, LevelFilter, SharedLogger, SimpleLogger, WriteLogger};
 use std::fs::File;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::{convert::Infallible, error::Error, net::SocketAddr};
-use tokio::net::TcpListener;
+use axum::{
+    http::StatusCode, routing::{get, Router},
+    response::{Html, IntoResponse},
+    extract::{Form, State, Path},
+
+};
+use tower_http::services::ServeDir;
+use serde::Deserialize;
+
 
 // A thread/
 type PoolProtocolRW = Arc<RwLock<protocol::PoolProtocol>>;
@@ -28,17 +33,42 @@ struct Cli {
 
     #[arg(short, long, default_value = "true")]
     logtostderr: bool,
+
+}
+
+// The result structure from the form.
+#[derive(Deserialize, Debug)]
+#[allow(dead_code)]
+struct ControlInput {
+    control_name: String,
+    state: String,
+}
+
+
+async fn update_command(Form(ControlInput): Form<ControlInput>) {
+    trace!("Got client input {:?}", ControlInput);
 }
 
 async fn serve_status(
-    _: Request<hyper::body::Incoming>,
-    pool_protocol: PoolProtocolRW,
-) -> Result<Response<Full<Bytes>>, Infallible> {
+    State(pool_protocol): State<PoolProtocolRW>
+) -> Html<&'static str> {
+    trace!("Calling status state request");
     // Read the current state
     let _pool_state = pool_protocol.write().unwrap().get_status();
-    Ok(Response::new(Full::new(Bytes::from(
-        "Pentair Configuration!",
-    ))))
+    Html(
+        r#"
+        <!doctype html>
+        <html>
+            <head>
+            <link href="/assets/style.css" rel="stylesheet" type="text/css">
+            </head>
+            <body>
+                    <button type="submit" class="button" value="Pool">
+                    <button type="submit" class="buttonon" value="Spa">
+            </body>
+        </html>
+        "#,
+    )
 }
 
 fn init_logging(verbosity: u8, logtostderr: bool) {
@@ -81,43 +111,26 @@ fn main() {
         protocol::serial_port(&config.port_parameters).expect("Failed to open serial port"),
     )));
     trace!("Serial port opened");
-
-    // Serve an echo service over HTTPS, with proper error handling.
-    if let Err(e) = run_server(&config.comms.listen_address, &pool_protocol) {
-        error!("FAILED: {}", e);
-        std::process::exit(1);
+    match run_server(&config.comms.listen_address, pool_protocol) {
+        Ok(()) => info!("Successfully stopping"),
+        Err(e) => error!("Failed {}", e)
     }
 }
 
 #[tokio::main]
 pub async fn run_server(
     address: &String,
-    pool_protocol: &PoolProtocolRW,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+    pool_protocol: PoolProtocolRW)->Result<(), std::io::Error> {
     let addr: SocketAddr = address.parse().expect("Invalid listen address");
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    info!("Opened address {:?} for listening", addr);
 
-    let listener = TcpListener::bind(addr).await?;
-    info!("Listening on: {}", addr);
-    loop {
-        let (stream, _) = listener.accept().await?;
-        // Create a clone for the closure inside the async block.
-        let pool_protocol = pool_protocol.clone();
 
-        tokio::task::spawn(async move {
-            if let Err(err) = http1::Builder::new()
-                .serve_connection(
-                    stream,
-                    service_fn(move |request| {
-                        serve_status(
-                            request,
-                            /*Clone again to async serving function*/ pool_protocol.clone(),
-                        )
-                    }),
-                )
-                .await
-            {
-                error!("Error serving connection: {:?}", err);
-            }
-        });
-    }
+    let app = Router::new()
+    .route("/", get(serve_status).post(update_command))
+    .with_state(pool_protocol)
+    .nest_service("/assets", ServeDir::new("assets"));
+
+    axum::serve(listener, app).await
+
 }
