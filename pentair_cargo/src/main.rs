@@ -63,8 +63,8 @@ async fn serve_status(
             <link href="/assets/style.css" rel="stylesheet" type="text/css">
             </head>
             <body>
-                    <button type="submit" class="button" value="Pool">
-                    <button type="submit" class="buttonon" value="Spa">
+                    <button type="submit" class="button"> Pool </button>
+                    <button type="submit" class="buttonon"> Spa </button>
             </body>
         </html>
         "#,
