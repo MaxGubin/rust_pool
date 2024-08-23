@@ -2,7 +2,7 @@ body {
   .button {
 	background-color: #04AA6D; /* Green */
   }
-  .buttonon {
+  .button.on {
 	background-color: #f44336; /* Red */ 
   }
 }
