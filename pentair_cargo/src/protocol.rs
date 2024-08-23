@@ -70,6 +70,7 @@ fn read_packet(port: &mut serial::SystemPort) -> Result<Vec<u8>, serial::Error> 
     Ok(buffer)
 }
 
+
 pub struct SystemState {
     // True if the packet was read successfully
     pub valid: bool,
@@ -88,7 +89,7 @@ pub struct SystemState {
 }
 
 impl SystemState {
-    pub fn new() -> SystemState {
+    fn new() -> SystemState {
         SystemState {
             valid: false,
             last_error: String::new(),
@@ -101,7 +102,7 @@ impl SystemState {
             solar_temp: 0,
         }
     }
-    pub fn from_error(err: serial::Error) -> SystemState {
+    fn from_error(err: serial::Error) -> SystemState {
         SystemState {
             valid: false,
             last_error: err.to_string(),
@@ -114,7 +115,7 @@ impl SystemState {
             solar_temp: 0,
         }
     }
-    pub fn from_packet(packet: Vec<u8>) -> SystemState {
+    fn from_packet(packet: Vec<u8>) -> SystemState {
         if packet.len() < 7 {
             return Self::from_error(serial::Error::new(
                 serial::ErrorKind::InvalidInput,
@@ -182,12 +183,17 @@ impl SystemState {
 
 pub struct PoolProtocol {
     port: serial::SystemPort,
+    // This is the only one thread that reads/writes the port. 
+   // communication_thread: std::thread::JoinHandle,
+   system_state: SystemState
+
 }
 
 impl PoolProtocol {
     pub fn new(port: serial::SystemPort) -> PoolProtocol {
-        PoolProtocol { port: port }
-    }
+        PoolProtocol { port ,
+        system_state: SystemState::new()}
+   }
 
     pub fn get_status(&mut self) -> SystemState {
         let packet = read_packet(&mut self.port);
@@ -196,6 +202,29 @@ impl PoolProtocol {
             Err(e) => SystemState::from_error(e),
         }
     }
+
+    // Checks the current state
+    pub fn get_controls_state(&self) ->Vec<(String, bool)> {
+        vec![("pool".to_string(), self.system_state.pool_on), ("spa".to_string(), self.system_state.spa_on)]
+    }
+    pub fn get_temperatures(&self) -> Vec<(String, f32)> {
+        vec![("water".to_string(), 82.), 
+        ("air".to_string(), 72.),
+        ("solar".to_string(), 83.)]
+    }
+    // Changes a state of a control. Returns back True if it was changed, false if it was not
+    // changed yet.
+    pub fn change_state(&mut self, control_name:&str, state: bool) -> bool {
+        if control_name == "pool" {
+            self.system_state.pool_on = state;
+        }
+        if control_name == "spa" {
+            self.system_state.spa_on = state;
+        }
+        true
+    }
+
+
 }
 
 #[cfg(test)]
