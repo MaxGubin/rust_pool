@@ -70,29 +70,27 @@ fn read_packet(port: &mut serial::SystemPort) -> Result<Vec<u8>, serial::Error> 
     Ok(buffer)
 }
 
-
+#[derive(Clone, Debug)]
 pub struct SystemState {
-    // True if the packet was read successfully
-    pub valid: bool,
+    // Version of the system's configururation, if changed, the circuits can be renamed.
+    version: u32,
 
-    //
-    pub last_error: String,
-    pub pool_on: bool,
-    pub spa_on: bool,
-    pub aux_circuits: Vec<bool>,
-    pub feature_circuits: Vec<bool>,
+    // Different switches, usually in the state on/off
+    pool_on: bool,
+    spa_on: bool,
+    aux_circuits: Vec<bool>,
+    feature_circuits: Vec<bool>,
 
     // Block of temperatures
-    pub water_temp: u32,
-    pub air_temp: u32,
-    pub solar_temp: u32,
+    water_temp: u32,
+    air_temp: u32,
+    solar_temp: u32,
 }
 
 impl SystemState {
     fn new() -> SystemState {
         SystemState {
-            valid: false,
-            last_error: String::new(),
+            version: 0,
             pool_on: false,
             spa_on: false,
             aux_circuits: Vec::new(),
@@ -102,29 +100,16 @@ impl SystemState {
             solar_temp: 0,
         }
     }
-    fn from_error(err: serial::Error) -> SystemState {
-        SystemState {
-            valid: false,
-            last_error: err.to_string(),
-            pool_on: false,
-            spa_on: false,
-            aux_circuits: Vec::new(),
-            feature_circuits: Vec::new(),
-            water_temp: 0,
-            air_temp: 0,
-            solar_temp: 0,
-        }
-    }
-    fn from_packet(packet: Vec<u8>) -> SystemState {
+    fn from_packet(packet: Vec<u8>) -> Result<SystemState, serial::Error> {
         if packet.len() < 7 {
-            return Self::from_error(serial::Error::new(
+            return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Packet too short",
             ));
         }
         const PROTOCOL_OFFSET: usize = 0;
         if packet[PROTOCOL_OFFSET] != 0x00 || packet[PROTOCOL_OFFSET] != 0x01 {
-            return Self::from_error(serial::Error::new(
+            return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Invalid protocol",
             ));
@@ -133,7 +118,7 @@ impl SystemState {
         const DEST_OFFSET: usize = 1;
         const SRC_OFFSET: usize = 3;
         if packet[DEST_OFFSET] != 0x0f || packet[SRC_OFFSET] != 0x10 {
-            return Self::from_error(serial::Error::new(
+            return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Invalid destination or source",
             ));
@@ -142,7 +127,7 @@ impl SystemState {
         const CMD_OFFSET: usize = 3;
         const SYSTEM_STATUS_CMD: u8 = 0x02;
         if packet[CMD_OFFSET] != SYSTEM_STATUS_CMD {
-            return Self::from_error(serial::Error::new(
+            return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Invalid command",
             ));
@@ -177,44 +162,55 @@ impl SystemState {
                 .push((packet[MASK_IDX] & FEATURE3_MASK) != 0);
         }
 
-        state
+        Ok(state)
+    }
+    pub fn get_version(&self) -> u32 {
+        self.version
+    }
+
+    // Checks the current state
+    pub fn get_controls_state(&self) -> Vec<(String, bool)> {
+        vec![
+            ("pool".to_string(), self.pool_on),
+            ("spa".to_string(), self.spa_on),
+        ]
+    }
+
+    //
+    pub fn get_temperatures(&self) -> Vec<(String, f32)> {
+        vec![
+            ("water".to_string(), 82.),
+            ("air".to_string(), 72.),
+            ("solar".to_string(), 83.),
+        ]
     }
 }
 
 pub struct PoolProtocol {
     port: serial::SystemPort,
-    // This is the only one thread that reads/writes the port. 
-   // communication_thread: std::thread::JoinHandle,
-   system_state: SystemState
+    // This is the only one thread that reads/writes the port.
+    // communication_thread: std::thread::JoinHandle,
+    system_state: SystemState,
 
+    // The version of the system
+    version: u32,
 }
 
 impl PoolProtocol {
     pub fn new(port: serial::SystemPort) -> PoolProtocol {
-        PoolProtocol { port ,
-        system_state: SystemState::new()}
-   }
-
-    pub fn get_status(&mut self) -> SystemState {
-        let packet = read_packet(&mut self.port);
-        match packet {
-            Ok(p) => SystemState::from_packet(p),
-            Err(e) => SystemState::from_error(e),
+        PoolProtocol {
+            port,
+            system_state: SystemState::new(),
+            version: 0,
         }
     }
 
-    // Checks the current state
-    pub fn get_controls_state(&self) ->Vec<(String, bool)> {
-        vec![("pool".to_string(), self.system_state.pool_on), ("spa".to_string(), self.system_state.spa_on)]
-    }
-    pub fn get_temperatures(&self) -> Vec<(String, f32)> {
-        vec![("water".to_string(), 82.), 
-        ("air".to_string(), 72.),
-        ("solar".to_string(), 83.)]
-    }
+
+    // 
+
     // Changes a state of a control. Returns back True if it was changed, false if it was not
     // changed yet.
-    pub fn change_state(&mut self, control_name:&str, state: bool) -> bool {
+    pub fn change_circuit(&mut self, control_name: &str, state: bool) -> bool {
         if control_name == "pool" {
             self.system_state.pool_on = state;
         }
@@ -223,24 +219,22 @@ impl PoolProtocol {
         }
         true
     }
-
-
 }
 
 #[cfg(test)]
 #[test]
 fn test_system_state_from_packet() {
     let packet = vec![
-        0x01,0x00,0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x3C, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x53, 0x00, 0x00, 0x00,
-        0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-        0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5F,0x00, 0x00, 0x00, 0x3C,0x00,
-        0x00, 0x00,0x03, 0x00, 0x00, 0x00, 0x0b, 0x00, 0x00, 0x00,0xf4, 0x01,
-        0x00,0x00,0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf5, 0x01,
-        0x00,0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,];
-        
-        // \\x00\\xf6\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x02\\x00\\xf7\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x06\\x01\\n\\x00\\xf8\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xf9\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfa\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfb\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfc\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfe\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x02\\x00\\x00\\x1f\\x03\\x00\\x00\\xff\\xff\\xff\\xff\\x00\\x00\\x00\\x00\\x06\\x00\\x00\\x00\\x07\\x00\\x00\\x00\\x00\\x00\\x00\\x00'"
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x00,
+        0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x53, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x00, 0x00, 0x00, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5F, 0x00, 0x00, 0x00,
+        0x3C, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x0b, 0x00, 0x00, 0x00, 0xf4, 0x01, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf5, 0x01, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+
+    // \\x00\\xf6\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x02\\x00\\xf7\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x06\\x01\\n\\x00\\xf8\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xf9\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfa\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfb\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfc\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfe\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x02\\x00\\x00\\x1f\\x03\\x00\\x00\\xff\\xff\\xff\\xff\\x00\\x00\\x00\\x00\\x06\\x00\\x00\\x00\\x07\\x00\\x00\\x00\\x00\\x00\\x00\\x00'"
 
     let state = SystemState::from_packet(packet);
     assert_eq!(state.pool_on, true);
