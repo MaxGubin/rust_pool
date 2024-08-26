@@ -1,18 +1,12 @@
+use axum::routing::{get, post, Router};
 use clap::Parser;
 use log::{error, info, trace};
 use simplelog::{CombinedLogger, Config, LevelFilter, SharedLogger, SimpleLogger, WriteLogger};
 use std::fs::File;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use std::{convert::Infallible, error::Error, net::SocketAddr};
-use axum::{
-    http::StatusCode, routing::{get, post, Router},
-    response::{Html, IntoResponse},
-    extract::{Json, State, Path},
-
-};
 use tower_http::services::ServeDir;
-
 
 // A thread/
 
@@ -32,10 +26,7 @@ struct Cli {
 
     #[arg(short, long, default_value = "true")]
     logtostderr: bool,
-
 }
-
-
 
 fn init_logging(verbosity: u8, logtostderr: bool) {
     let log_level = match verbosity {
@@ -79,25 +70,25 @@ fn main() {
     trace!("Serial port opened");
     match run_server(&config.comms.listen_address, pool_protocol) {
         Ok(()) => info!("Successfully stopping"),
-        Err(e) => error!("Failed {}", e)
+        Err(e) => error!("Failed {}", e),
     }
 }
 
 #[tokio::main]
 pub async fn run_server(
     address: &String,
-    pool_protocol: ui::PoolProtocolRW)->Result<(), std::io::Error> {
+    pool_protocol: ui::PoolProtocolRW,
+) -> Result<(), std::io::Error> {
     let addr: SocketAddr = address.parse().expect("Invalid listen address");
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!("Opened address {:?} for listening", addr);
 
-
     let app = Router::new()
-    .route("/", get(ui::serve_status))
-    .route("/control", post(ui::control_command))
-    .with_state(pool_protocol)
-    .nest_service("/assets", ServeDir::new("assets"));
+        .route("/", get(ui::serve_status))
+        .route("/control", post(ui::control_command))
+        .route("/state", get(ui::state_json))
+        .with_state(pool_protocol)
+        .nest_service("/assets", ServeDir::new("assets"));
 
     axum::serve(listener, app).await
-
 }
