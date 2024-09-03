@@ -5,7 +5,7 @@ use simplelog::{CombinedLogger, Config, LevelFilter, SharedLogger, SimpleLogger,
 use std::fs::File;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 use tower_http::services::ServeDir;
 
 // A thread/

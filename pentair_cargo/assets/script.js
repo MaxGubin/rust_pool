@@ -23,4 +23,3 @@ function toggleState(buttonId) {
 
     xhr.send(JSON.stringify({ control_name: buttonId, state: newState }));
 }
-
