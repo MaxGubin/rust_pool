@@ -205,8 +205,10 @@ impl PoolProtocol {
         }
     }
 
-
-    // 
+    /// Returns the current state of the system.
+    pub fn get_state(&self) -> SystemState {
+        self.system_state.clone()
+    }
 
     // Changes a state of a control. Returns back True if it was changed, false if it was not
     // changed yet.
@@ -236,13 +238,13 @@ fn test_system_state_from_packet() {
 
     // \\x00\\xf6\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x02\\x00\\xf7\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x06\\x01\\n\\x00\\xf8\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xf9\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfa\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfb\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfc\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfe\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x02\\x00\\x00\\x1f\\x03\\x00\\x00\\xff\\xff\\xff\\xff\\x00\\x00\\x00\\x00\\x06\\x00\\x00\\x00\\x07\\x00\\x00\\x00\\x00\\x00\\x00\\x00'"
 
-    let state = SystemState::from_packet(packet);
-    assert_eq!(state.pool_on, true);
-    assert_eq!(state.spa_on, false);
-    assert_eq!(state.aux_circuits[0], true);
-    assert_eq!(state.aux_circuits[1], false);
-    assert_eq!(state.aux_circuits[2], false);
-    assert_eq!(state.feature_circuits[0], false);
-    assert_eq!(state.feature_circuits[1], false);
-    assert_eq!(state.feature_circuits[2], false);
+    let state = SystemState::from_packet(packet).unwrap();
+    assert!(state.pool_on);
+    assert!(!state.spa_on);
+    assert!(state.aux_circuits[0]);
+    assert!(!state.aux_circuits[1]);
+    assert!(state.aux_circuits[2]);
+    assert!(!state.feature_circuits[0]);
+    assert!(!state.feature_circuits[1]);
+    assert!(!state.feature_circuits[2]);
 }

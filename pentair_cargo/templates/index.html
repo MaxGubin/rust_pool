@@ -19,5 +19,34 @@
 	    {{ name }}: {{ value }} <br>
 	    {% endfor %}
 	    <script src="/assets/script.js"></script>
+      <script>
+            function read_state() {
+                console.log('Reading state');
+                const xhr = new XMLHttpRequest();
+                xhr.open("GET", "/state", true);
+
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        const response = JSON.parse(xhr.responseText);
+                        for (const [control_name, state] of response.switches) {
+                            const button = document.getElementById(control_name);
+                            button.classList.remove('on', 'off');
+                            button.classList.add(state? 'on': 'off');
+                        }
+                    } else {
+                        console.error(`Error: ${xhr.statusText}`);
+                    }
+                };
+
+                xhr.onerror = function() {
+                    console.error('Request failed');
+                };
+
+                xhr.send();
+            }
+
+            setInterval(read_state, 1000);
+            console.log('Script loaded');
+      </script>
     </body>
 </html>

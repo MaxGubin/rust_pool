@@ -1,16 +1,15 @@
 // Interface implementation
 
-use log::{error, info, trace};
-use serde::Deserialize;
+use log::{error, trace};
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
 use crate::protocol;
 use askama::Template;
 use axum::{
-    extract::{Json, Path, State},
+    extract::{Json, State},
     http::StatusCode,
     response::{Html, IntoResponse},
-    routing::{get, post, Router},
 };
 
 pub type PoolProtocolRW = Arc<RwLock<protocol::PoolProtocol>>;
@@ -30,12 +29,8 @@ pub async fn control_command(
     trace!("Got client input {:?}", control_input);
 
     let mut pool_protocol = pool_protocol.write().unwrap();
-    let state = if control_input.state == "on" {
-        true
-    } else {
-        false
-    };
-    pool_protocol.change_state(&control_input.control_name, state);
+    let state = control_input.state == "on";
+    pool_protocol.change_circuit(&control_input.control_name, state);
 }
 
 #[derive(Template)]
@@ -48,10 +43,10 @@ struct UITemplate<'a> {
 pub async fn serve_status(State(pool_protocol): State<PoolProtocolRW>) -> impl IntoResponse {
     trace!("Calling status state request");
     // Read the current state
-    let pool_protocol = pool_protocol.read().unwrap();
+    let pool_state = pool_protocol.read().unwrap().get_state();
     let template = UITemplate {
-        controls: &pool_protocol.get_controls_state(),
-        temperatures: &pool_protocol.get_temperatures(),
+        controls: &pool_state.get_controls_state(),
+        temperatures: &pool_state.get_temperatures(),
     };
     match template.render() {
         Ok(html) => Html(html).into_response(),
@@ -68,7 +63,29 @@ pub async fn serve_status(State(pool_protocol): State<PoolProtocolRW>) -> impl I
 
 #[derive(Serialize, Debug)]
 struct SystemState {
-    version: u32,
+    /// Version of the system (pool)
+    system_version: u32,
+
+    /// version of the application
+    application_version: u32,
+
+    /// Switches state.
+    switches: Vec<(String, bool)>,
+
+    /// Temperature sensors.
+    temperatures: Vec<(String, f32)>,
 }
 
-pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl IntoResponse {}
+pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl IntoResponse {
+    trace!("Calling state json request");
+    // Read the current state
+    let pool_state = pool_protocol.read().unwrap().get_state();
+    let state = SystemState {
+        system_version: 1,
+        application_version: 1,
+        switches: pool_state.get_controls_state(),
+        temperatures: pool_state.get_temperatures(),
+    };
+    trace!("Replied with a state {:?}", state);
+    Json(state).into_response()
+}
