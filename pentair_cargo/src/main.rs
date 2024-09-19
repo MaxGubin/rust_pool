@@ -5,7 +5,7 @@ use simplelog::{CombinedLogger, Config, LevelFilter, SharedLogger, SimpleLogger,
 use std::fs::File;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use tower_http::services::ServeDir;
 
 // A thread/
@@ -68,7 +68,7 @@ fn main() {
         protocol::serial_port(&config.port_parameters).expect("Failed to open serial port"),
     )));
     trace!("Serial port opened");
-    match run_server(&config.comms.listen_address, pool_protocol) {
+    match run_server(&config.comms, pool_protocol) {
         Ok(()) => info!("Successfully stopping"),
         Err(e) => error!("Failed {}", e),
     }
@@ -76,19 +76,46 @@ fn main() {
 
 #[tokio::main]
 pub async fn run_server(
-    address: &String,
+    config: &config::config_json::Comms,
     pool_protocol: ui::PoolProtocolRW,
 ) -> Result<(), std::io::Error> {
-    let addr: SocketAddr = address.parse().expect("Invalid listen address");
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    info!("Opened address {:?} for listening", addr);
-
     let app = Router::new()
         .route("/", get(ui::serve_status))
         .route("/control", post(ui::control_command))
         .route("/state", get(ui::state_json))
         .with_state(pool_protocol)
         .nest_service("/assets", ServeDir::new("assets"));
-
-    axum::serve(listener, app).await
+    if config.https_listen_address.is_some() {
+        if config.cert_path.is_none() || config.key_path.is_none() {
+            panic!("Missing cert_path or key_path");
+        }
+        let rustls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
+            config.cert_path.as_ref().unwrap(),
+            config.key_path.as_ref().unwrap(),
+        )
+        .await?;
+        let addr = config
+            .https_listen_address
+            .as_ref()
+            .unwrap()
+            .parse()
+            .expect("Invalid https address");
+        axum_server::tls_rustls::bind_rustls(addr, rustls_config)
+            .serve(app.into_make_service())
+            .await
+    } else {
+        if config.http_listen_address.is_none() {
+            panic!("Missing both http_listen_address");
+        }
+        axum_server::bind(
+            config
+                .http_listen_address
+                .as_ref()
+                .unwrap()
+                .parse()
+                .expect("Invalid http address"),
+        )
+        .serve(app.into_make_service())
+        .await
+    }
 }

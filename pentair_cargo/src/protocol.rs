@@ -1,6 +1,8 @@
 use crate::config;
+use log::{error, warn};
 use serial::{self, Error, SerialPort};
 use std::io::Read;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 pub fn serial_port(
     parameters: &config::config_json::PortParameters,
@@ -18,56 +20,6 @@ pub fn serial_port(
     let mut port = serial::open(port_name).unwrap();
     port.configure(&settings)?;
     Ok(port)
-}
-
-fn read_to_header(port: &mut serial::SystemPort) -> Result<(), serial::Error> {
-    const HEADER: [u8; 4] = [0xFF, 0x00, 0xFF, 0xA5];
-    let mut byte = [0; 1];
-    let mut buffer = Vec::with_capacity(HEADER.len());
-    loop {
-        port.read(&mut byte[..])?;
-        buffer.push(byte[0]);
-        if buffer.len() == HEADER.len() {
-            if buffer == HEADER {
-                break;
-            } else {
-                buffer.remove(0);
-            }
-        }
-    }
-    Ok(())
-}
-
-fn read_packet(port: &mut serial::SystemPort) -> Result<Vec<u8>, serial::Error> {
-    read_to_header(port)?;
-    let mut buffer: Vec<u8> = Vec::new();
-    let mut byte: [u8; 1] = [0];
-    for _ in 0..4 {
-        port.read(&mut byte[..])?;
-        buffer.push(byte[0]);
-    }
-    let to_read_len = buffer[4] as usize;
-    for _ in 0..to_read_len {
-        port.read(&mut byte[..])?;
-        buffer.push(byte[0]);
-    }
-
-    // Checksum
-    port.read(&mut byte[..])?;
-    let mut checksum: u16 = 256 * (byte[0] as u16);
-    port.read(&mut byte[..])?;
-    checksum += byte[0] as u16;
-    for b in buffer.iter() {
-        checksum -= *b as u16;
-    }
-    if checksum != 0 {
-        return Err(serial::Error::new(
-            serial::ErrorKind::InvalidInput,
-            "Checksum error",
-        ));
-    }
-
-    Ok(buffer)
 }
 
 #[derive(Clone, Debug)]
@@ -100,7 +52,7 @@ impl SystemState {
             solar_temp: 0,
         }
     }
-    fn from_packet(packet: Vec<u8>) -> Result<SystemState, serial::Error> {
+    fn from_packet(packet: &Vec<u8>) -> Result<SystemState, serial::Error> {
         if packet.len() < 7 {
             return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
@@ -194,6 +146,15 @@ pub struct PoolProtocol {
 
     // The version of the system
     version: u32,
+
+    /// Keep a few recent packets for debugging/logging.
+    recent_packets: Vec<Vec<u8>>,
+
+    /// Different counters with protocol errors.
+    unrecognized_bytes: AtomicU32,
+    corrupted_packets: AtomicU32,
+    short_packets: AtomicU32,
+    unknown_protocol: AtomicU32,
 }
 
 impl PoolProtocol {
@@ -202,12 +163,109 @@ impl PoolProtocol {
             port,
             system_state: SystemState::new(),
             version: 0,
+            recent_packets: Vec::new(),
+            unrecognized_bytes: AtomicU32::new(0),
+            corrupted_packets: AtomicU32::new(0),
+            short_packets: AtomicU32::new(0),
+            unknown_protocol: AtomicU32::new(0),
         }
     }
 
     /// Returns the current state of the system.
     pub fn get_state(&self) -> SystemState {
         self.system_state.clone()
+    }
+
+    fn scan_for_header(&mut self) -> Result<(), serial::Error> {
+        const HEADER: [u8; 4] = [0xFF, 0x00, 0xFF, 0xA5];
+        let mut byte = [0; 1];
+        let mut buffer = Vec::with_capacity(HEADER.len());
+        loop {
+            self.port.read(&mut byte[..])?;
+            buffer.push(byte[0]);
+            if buffer.len() == HEADER.len() {
+                if buffer == HEADER {
+                    break;
+                } else {
+                    buffer.remove(0);
+                    self.unrecognized_bytes.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn read_packet(&mut self) -> Result<Vec<u8>, serial::Error> {
+        self.scan_for_header()?;
+        const USUAL_PACKET_SIZE: usize = 32;
+        let mut buffer: Vec<u8> = Vec::with_capacity(USUAL_PACKET_SIZE);
+        let mut byte: [u8; 1] = [0];
+        for _ in 0..4 {
+            self.port.read(&mut byte[..])?;
+            buffer.push(byte[0]);
+        }
+        let to_read_len = buffer[4] as usize;
+        for _ in 0..to_read_len {
+            self.port.read(&mut byte[..])?;
+            buffer.push(byte[0]);
+        }
+
+        // Checksum
+        self.port.read(&mut byte[..])?;
+        let mut checksum: u16 = 256 * (byte[0] as u16);
+        self.port.read(&mut byte[..])?;
+        checksum += byte[0] as u16;
+        for b in buffer.iter() {
+            checksum -= *b as u16;
+        }
+        if checksum != 0 {
+            self.corrupted_packets.fetch_add(1, Ordering::Relaxed);
+            return Err(serial::Error::new(
+                serial::ErrorKind::InvalidInput,
+                "Checksum error",
+            ));
+        }
+
+        Ok(buffer)
+    }
+
+    fn process_packet(&mut self, packet: &Vec<u8>) {
+        const MINIMUM_PACKET_SIZE: usize = 4;
+        const PROTOCOL_OFFSET: usize = 0;
+        const COMMAND_OFFSET: usize = 3;
+        if packet.len() < 4 {
+            warn!("Got a short packet");
+            self.short_packets.fetch_add(1, Ordering::Relaxed);
+            return;
+        }
+        if packet[PROTOCOL_OFFSET] != 0x00 || packet[PROTOCOL_OFFSET] != 0x01 {
+            warn!("Got a packet with invalid protocol");
+            self.unknown_protocol.fetch_add(1, Ordering::Relaxed);
+            return;
+        }
+
+        match packet[COMMAND_OFFSET] {
+            0x02 => match SystemState::from_packet(packet) {
+                Ok(state) => {
+                    self.system_state = state;
+                }
+                Err(e) => {
+                    error!("Failed to process packet: {}", e);
+                }
+            },
+            _ => {
+                warn!("Got a packet with unknown command");
+            }
+        }
+        {}
+        match SystemState::from_packet(packet) {
+            Ok(state) => {
+                self.system_state = state;
+            }
+            Err(e) => {
+                error!("Failed to process packet: {}", e);
+            }
+        }
     }
 
     // Changes a state of a control. Returns back True if it was changed, false if it was not
@@ -220,6 +278,24 @@ impl PoolProtocol {
             self.system_state.spa_on = state;
         }
         true
+    }
+
+    pub fn port_read_thread(&mut self) {
+        loop {
+            match self.read_packet() {
+                Ok(packet) => {
+                    // save the packet for debugging/logging
+                    self.recent_packets.push(packet.clone());
+                    if self.recent_packets.len() > 10 {
+                        self.recent_packets.remove(0);
+                    }
+                    self.process_packet(&packet);
+                }
+                Err(e) => {
+                    error!("Failed to read packet: {}", e);
+                }
+            }
+        }
     }
 }
 
