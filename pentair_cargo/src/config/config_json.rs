@@ -24,9 +24,14 @@ fn default_timeout_msec() -> u32 {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Comms {
-    pub listen_address: String,
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
+    /// The http listen_address
+    pub http_listen_address: Option<String>,
+
+    // If not empty, we use https.
+    //
+    pub https_listen_address: Option<String>,
+    pub cert_path: Option<String>,
+    pub key_path: Option<String>,
 }
 
 pub fn decode_char_size(char_size: u32) -> serial::CharSize {
@@ -39,7 +44,6 @@ pub fn decode_char_size(char_size: u32) -> serial::CharSize {
     }
 }
 
-
 pub fn decode_parity(parity: &str) -> serial::Parity {
     match parity {
         "None" => serial::Parity::ParityNone,
@@ -48,7 +52,6 @@ pub fn decode_parity(parity: &str) -> serial::Parity {
         _ => panic!("Invalid parity"),
     }
 }
-
 
 pub fn decode_stop_bits(stop_bits: u32) -> serial::StopBits {
     match stop_bits {
@@ -70,6 +73,6 @@ pub struct PortParameters {
     pub parity: String,
     #[serde(default = "default_stop_bits ")]
     pub stop_bits: u32,
-    #[serde(default="default_timeout_msec")]
+    #[serde(default = "default_timeout_msec")]
     pub timeout_msec: u32,
 }
