@@ -3,6 +3,7 @@ use log::{error, warn};
 use serial::{self, Error, SerialPort};
 use std::io::Read;
 use std::sync::atomic::{AtomicU32, Ordering};
+use tokio::time::{Duration, Sleep};
 
 pub fn serial_port(
     parameters: &config::config_json::PortParameters,
@@ -176,6 +177,10 @@ impl PoolProtocol {
         self.system_state.clone()
     }
 
+    pub fn get_recent_packets(&self) -> Vec<Vec<u8>> {
+        self.recent_packets.clone()
+    }
+
     fn scan_for_header(&mut self) -> Result<(), serial::Error> {
         const HEADER: [u8; 4] = [0xFF, 0x00, 0xFF, 0xA5];
         let mut byte = [0; 1];
@@ -296,6 +301,15 @@ impl PoolProtocol {
                 }
             }
         }
+    }
+}
+
+pub impl Iterator for PoolProtocol {
+    type Item = SystemState;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        sleep(Duration::from_secs(1)).await;
+        Some(self.get_state())
     }
 }
 
