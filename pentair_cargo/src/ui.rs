@@ -6,11 +6,14 @@ use std::sync::{Arc, RwLock};
 
 use crate::protocol;
 use askama::Template;
+
 use axum::{
+    extract::ws::{Message, WebSocketUpgrade},
     extract::{Json, State},
     http::StatusCode,
     response::{Html, IntoResponse},
 };
+use futures::{sink::SinkExt, stream::StreamExt};
 
 pub type PoolProtocolRW = Arc<RwLock<protocol::PoolProtocol>>;
 
@@ -88,4 +91,68 @@ pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl Int
     };
     trace!("Replied with a state {:?}", state);
     Json(state).into_response()
+}
+
+pub async fn ws_handler(ws: WebSocketUpgrade, State(pool_protocol): State<PoolProtocolRW>) {
+    let ws = ws.on_upgrade(move |socket| async {
+        let (mut tx, mut rx) = socket.split();
+        while let Some(Ok(msg)) = rx.next().await {
+            let mut pool_protocol = pool_protocol.write().unwrap();
+            match msg {
+                Message::Text(text) => {
+                    trace!("Got a text message: {}", text);
+                    let state = pool_protocol.get_state();
+                    let state = SystemState {
+                        system_version: 1,
+                        application_version: 1,
+                        switches: state.get_controls_state(),
+                        temperatures: state.get_temperatures(),
+                    };
+                    let json = serde_json::to_string(&state).unwrap();
+                    tx.send(Message::Text(json)).await.unwrap();
+                }
+                Message::Binary(_) => {
+                    trace!("Got a binary message");
+                }
+                Message::Ping(_) => {
+                    trace!("Got a ping");
+                }
+                Message::Pong(_) => {
+                    trace!("Got a pong");
+                }
+                Message::Close(_) => {
+                    trace!("Got a close");
+                }
+            }
+        }
+        while let Some(Ok(msg)) = rx.next().await {
+            let mut pool_protocol = pool_protocol.write().unwrap();
+            match msg {
+                Message::Text(text) => {
+                    trace!("Got a text message: {}", text);
+                    let state = pool_protocol.get_state();
+                    let state = SystemState {
+                        system_version: 1,
+                        application_version: 1,
+                        switches: state.get_controls_state(),
+                        temperatures: state.get_temperatures(),
+                    };
+                    let json = serde_json::to_string(&state).unwrap();
+                    tx.send(Message::Text(json)).await.unwrap();
+                }
+                Message::Binary(_) => {
+                    trace!("Got a binary message");
+                }
+                Message::Ping(_) => {
+                    trace!("Got a ping");
+                }
+                Message::Pong(_) => {
+                    trace!("Got a pong");
+                }
+                Message::Close(_) => {
+                    trace!("Got a close");
+                }
+            }
+        }
+    });
 }
