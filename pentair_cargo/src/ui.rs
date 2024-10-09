@@ -93,8 +93,8 @@ pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl Int
     Json(state).into_response()
 }
 
-pub async fn ws_handler(ws: WebSocketUpgrade, State(pool_protocol): State<PoolProtocolRW>) {
-    let ws = ws.on_upgrade(move |socket| async {
+pub async fn ws_handler(ws: &WebSocketUpgrade, State(pool_protocol): State<PoolProtocolRW>) {
+    let ws = ws.on_upgrade(|socket| async {
         let (mut tx, mut rx) = socket.split();
         while let Some(Ok(msg)) = rx.next().await {
             let mut pool_protocol = pool_protocol.write().unwrap();
