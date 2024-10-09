@@ -3,7 +3,6 @@ use log::{error, warn};
 use serial::{self, Error, SerialPort};
 use std::io::Read;
 use std::sync::atomic::{AtomicU32, Ordering};
-use tokio::time::{Duration, Sleep};
 
 pub fn serial_port(
     parameters: &config::config_json::PortParameters,
@@ -304,11 +303,10 @@ impl PoolProtocol {
     }
 }
 
-pub impl Iterator for PoolProtocol {
+impl Iterator for PoolProtocol {
     type Item = SystemState;
 
     fn next(&mut self) -> Option<Self::Item> {
-        sleep(Duration::from_secs(1)).await;
         Some(self.get_state())
     }
 }
