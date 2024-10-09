@@ -8,7 +8,7 @@ use crate::protocol;
 use askama::Template;
 
 use axum::{
-    extract::ws::{Message, WebSocketUpgrade},
+    extract::ws::{Message, WebSocket},
     extract::{Json, State},
     http::StatusCode,
     response::{Html, IntoResponse},
@@ -93,7 +93,7 @@ pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl Int
     Json(state).into_response()
 }
 
-pub async fn ws_handler(ws: &WebSocketUpgrade, State(pool_protocol): State<PoolProtocolRW>) {
+pub async fn ws_handler(ws: &WebSocket, State(pool_protocol): State<PoolProtocolRW>) {
     let ws = ws.on_upgrade(|socket| async {
         let (mut tx, mut rx) = socket.split();
         while let Some(Ok(msg)) = rx.next().await {
