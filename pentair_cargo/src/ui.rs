@@ -6,6 +6,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::protocol;
 use askama::Template;
+use futures_util::{stream::StreamExt, SinkExt};
 
 use axum::{
     extract::ws::{Message, WebSocketUpgrade},
@@ -13,7 +14,6 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse},
 };
-use futures::{sink::SinkExt, stream::StreamExt};
 
 pub type PoolProtocolRW = Arc<RwLock<protocol::PoolProtocol>>;
 
@@ -93,22 +93,22 @@ pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl Int
     Json(state).into_response()
 }
 
-pub async fn ws_handler(ws: &WebSocketUpgrade, State(pool_protocol): State<PoolProtocolRW>) {
-    let ws = ws.on_upgrade(|socket| async {
+pub async fn ws_handler(ws: WebSocketUpgrade, State(pool_protocol): State<PoolProtocolRW>) {
+    let pp = pool_protocol.write().unwrap();
+    let ws = ws.on_upgrade(|socket| async move {
         let (mut tx, mut rx) = socket.split();
         while let Some(Ok(msg)) = rx.next().await {
-            let mut pool_protocol = pool_protocol.write().unwrap();
             match msg {
                 Message::Text(text) => {
                     trace!("Got a text message: {}", text);
-                    let state = pool_protocol.get_state();
-                    let state = SystemState {
+                    let state = pp.get_state();
+                    let sstate = SystemState {
                         system_version: 1,
                         application_version: 1,
                         switches: state.get_controls_state(),
                         temperatures: state.get_temperatures(),
                     };
-                    let json = serde_json::to_string(&state).unwrap();
+                    let json = serde_json::to_string(&sstate).unwrap();
                     tx.send(Message::Text(json)).await.unwrap();
                 }
                 Message::Binary(_) => {
