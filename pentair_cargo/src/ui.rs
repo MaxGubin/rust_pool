@@ -94,14 +94,14 @@ pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl Int
 }
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(pool_protocol): State<PoolProtocolRW>) {
-    let pp = pool_protocol.write().unwrap();
-    let ws = ws.on_upgrade(|socket| async move {
+    let _ws = ws.on_upgrade(|socket| async move {
         let (mut tx, mut rx) = socket.split();
         while let Some(Ok(msg)) = rx.next().await {
             match msg {
                 Message::Text(text) => {
                     trace!("Got a text message: {}", text);
-                    let state = pp.get_state();
+                    let state = pool_protocol.write().unwrap().get_state();
+
                     let sstate = SystemState {
                         system_version: 1,
                         application_version: 1,
@@ -109,35 +109,6 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(pool_protocol): State<PoolPr
                         temperatures: state.get_temperatures(),
                     };
                     let json = serde_json::to_string(&sstate).unwrap();
-                    tx.send(Message::Text(json)).await.unwrap();
-                }
-                Message::Binary(_) => {
-                    trace!("Got a binary message");
-                }
-                Message::Ping(_) => {
-                    trace!("Got a ping");
-                }
-                Message::Pong(_) => {
-                    trace!("Got a pong");
-                }
-                Message::Close(_) => {
-                    trace!("Got a close");
-                }
-            }
-        }
-        while let Some(Ok(msg)) = rx.next().await {
-            let mut pool_protocol = pool_protocol.write().unwrap();
-            match msg {
-                Message::Text(text) => {
-                    trace!("Got a text message: {}", text);
-                    let state = pool_protocol.get_state();
-                    let state = SystemState {
-                        system_version: 1,
-                        application_version: 1,
-                        switches: state.get_controls_state(),
-                        temperatures: state.get_temperatures(),
-                    };
-                    let json = serde_json::to_string(&state).unwrap();
                     tx.send(Message::Text(json)).await.unwrap();
                 }
                 Message::Binary(_) => {
