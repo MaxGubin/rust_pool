@@ -23,3 +23,8 @@ function toggleState(buttonId) {
 
     xhr.send(JSON.stringify({ control_name: buttonId, state: newState }));
 }
+
+function ws_handler() {
+  const socket = new WebSocket(''window.location.hostname+':' ws://example.com:3000/ws');
+
+}

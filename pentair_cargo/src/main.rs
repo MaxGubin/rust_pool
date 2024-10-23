@@ -82,6 +82,7 @@ pub async fn run_server(
         .route("/", get(ui::serve_status))
         .route("/control", post(ui::control_command))
         .route("/state", get(ui::state_json))
+        .route("/ws", get(ui::ws_handler))
         .with_state(pool_protocol)
         .nest_service("/assets", ServeDir::new("assets"));
     if config.https_listen_address.is_some() {
