@@ -24,7 +24,21 @@ function toggleState(buttonId) {
     xhr.send(JSON.stringify({ control_name: buttonId, state: newState }));
 }
 
-function ws_handler() {
-  const socket = new WebSocket(''window.location.hostname+':' ws://example.com:3000/ws');
+function setupWebSocket() {
+  const hostname = window.location.hostname;
+  const port = window.location.port;
+  const ws_url = `ws://${hostname}:${port}/ws`;
+  console.log(`Connecting with Websocket [[${ws_url}]]`)
+  const socket = new WebSocket(ws_url);
+  socket.addEventListener('open', (event) => {
+      console.log('Connected to the server');
+  });
 
+  socket.addEventListener('message', (event) => {
+      console.log('Message from server ', event.data);
+  });
+
+  socket.addEventListener('close', (event) => {
+      console.log('Disconnected from the server');
+  });
 }

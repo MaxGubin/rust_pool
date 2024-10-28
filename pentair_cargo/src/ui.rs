@@ -93,9 +93,15 @@ pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl Int
     Json(state).into_response()
 }
 
-pub async fn ws_handler(ws: WebSocketUpgrade, State(pool_protocol): State<PoolProtocolRW>) {
-    let _ws = ws.on_upgrade(|socket| async move {
+pub async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State(pool_protocol): State<PoolProtocolRW>,
+) -> impl IntoResponse {
+    trace!("Upgrade to Websocket");
+    ws.on_upgrade(|socket| async move {
+        trace!("Websocket upgraded");
         let (mut tx, mut rx) = socket.split();
+        trace!("Websocket split");
         while let Some(Ok(msg)) = rx.next().await {
             match msg {
                 Message::Text(text) => {
@@ -125,5 +131,6 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(pool_protocol): State<PoolPr
                 }
             }
         }
-    });
+        trace!("Exit Websocket loop");
+    })
 }
