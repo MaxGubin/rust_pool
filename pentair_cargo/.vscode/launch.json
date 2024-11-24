@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/target/debug/pentair_cargo",
             "cwd": "${workspaceFolder}",
-            "args": ["config.json"],
+            "args": ["config.json"]
         }
     ]
 

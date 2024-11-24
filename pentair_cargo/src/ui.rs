@@ -106,8 +106,15 @@ pub async fn ws_handler(
             match msg {
                 Message::Text(text) => {
                     trace!("Got a text message: {}", text);
-                    let state = pool_protocol.write().unwrap().get_state();
-
+                    match serde_json::from_str::<ControlInput>(text.as_str()) {
+                        Err(e) => error!("Client sent misforemed json {e:?}"),
+                        Ok(control_input) => {
+                            let mut pool_protocol = pool_protocol.write().unwrap();
+                            let state = control_input.state == "on";
+                            pool_protocol.change_circuit(&control_input.control_name, state);
+                        }
+                    }
+                    let state = pool_protocol.read().unwrap().get_state();
                     let sstate = SystemState {
                         system_version: 1,
                         application_version: 1,
