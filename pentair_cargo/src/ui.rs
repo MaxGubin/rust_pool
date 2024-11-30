@@ -4,7 +4,7 @@ use log::{error, trace};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
-use crate::protocol;
+use crate::pool::protocol;
 use askama::Template;
 use futures_util::{stream::StreamExt, SinkExt};
 

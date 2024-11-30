@@ -4,19 +4,17 @@ use std::io;
 use std::path;
 
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 pub mod config_json;
 mod controller;
-
 
 /// Config constants
 
 // The root configuration structure.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct PoolConfig{
-   pub comms: config_json::Comms, 
-   pub port_parameters: config_json::PortParameters,
+pub struct PoolConfig {
+    pub comms: config_json::Comms,
+    pub port_parameters: config_json::PortParameters,
 }
 
 pub fn read_configuration(config_path: &path::Path) -> io::Result<PoolConfig> {
@@ -32,6 +30,9 @@ mod tests {
     #[test]
     fn test_read_configuration() {
         let config = read_configuration(path::Path::new("config.json")).unwrap();
-        assert_eq!(config.comms.listen_address, "127.0.0.1:3000");
+        assert_eq!(
+            config.comms.http_listen_address,
+            Some("127.0.0.1:3000".to_string())
+        );
     }
 }

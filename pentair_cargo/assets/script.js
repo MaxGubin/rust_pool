@@ -4,7 +4,7 @@ function toggleState(buttonId) {
 
   // Check that the websocket is in a good shape.
   if (window.sharedWebSocket.readyState != WebSocket.OPEN) {
-    console.error("Websocket is not open in control ${buttonId}");
+    console.error(`Websocket is not open in control [[${buttonId}]]`);
     return;
   }
   const newState = currentState === 'on' ? 'off' : 'on';

@@ -155,6 +155,9 @@ pub struct PoolProtocol {
     corrupted_packets: AtomicU32,
     short_packets: AtomicU32,
     unknown_protocol: AtomicU32,
+
+    /// A queue of outgoing packets.
+    outgoing: Vec<String>,
 }
 
 impl PoolProtocol {
@@ -168,6 +171,7 @@ impl PoolProtocol {
             corrupted_packets: AtomicU32::new(0),
             short_packets: AtomicU32::new(0),
             unknown_protocol: AtomicU32::new(0),
+            outgoing: vec![],
         }
     }
 
@@ -205,19 +209,19 @@ impl PoolProtocol {
         let mut buffer: Vec<u8> = Vec::with_capacity(USUAL_PACKET_SIZE);
         let mut byte: [u8; 1] = [0];
         for _ in 0..4 {
-            self.port.read(&mut byte[..])?;
+            self.port.read_exact(&mut byte[..])?;
             buffer.push(byte[0]);
         }
         let to_read_len = buffer[4] as usize;
         for _ in 0..to_read_len {
-            self.port.read(&mut byte[..])?;
+            self.port.read_exact(&mut byte[..])?;
             buffer.push(byte[0]);
         }
 
         // Checksum
-        self.port.read(&mut byte[..])?;
+        self.port.read_exact(&mut byte[..])?;
         let mut checksum: u16 = 256 * (byte[0] as u16);
-        self.port.read(&mut byte[..])?;
+        self.port.read_exact(&mut byte[..])?;
         checksum += byte[0] as u16;
         for b in buffer.iter() {
             checksum -= *b as u16;
@@ -299,6 +303,7 @@ impl PoolProtocol {
                     error!("Failed to read packet: {}", e);
                 }
             }
+            //
         }
     }
 }
@@ -326,7 +331,7 @@ fn test_system_state_from_packet() {
 
     // \\x00\\xf6\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x02\\x00\\xf7\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x06\\x01\\n\\x00\\xf8\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xf9\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfa\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfb\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfc\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfe\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x02\\x00\\x00\\x1f\\x03\\x00\\x00\\xff\\xff\\xff\\xff\\x00\\x00\\x00\\x00\\x06\\x00\\x00\\x00\\x07\\x00\\x00\\x00\\x00\\x00\\x00\\x00'"
 
-    let state = SystemState::from_packet(packet).unwrap();
+    let state = SystemState::from_packet(&packet).unwrap();
     assert!(state.pool_on);
     assert!(!state.spa_on);
     assert!(state.aux_circuits[0]);

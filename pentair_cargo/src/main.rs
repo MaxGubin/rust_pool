@@ -10,7 +10,7 @@ use tower_http::services::ServeDir;
 // A thread/
 
 mod config;
-mod protocol;
+mod pool;
 mod ui;
 
 // Command line arguments
@@ -19,7 +19,6 @@ struct Cli {
     #[arg(short, long, default_value = "config.json")]
     config: PathBuf,
 
-    ///
     #[arg(short, long, default_value = "5")]
     verbosity: u8,
 
@@ -63,8 +62,8 @@ fn main() {
     let config = config::read_configuration(&args.config).expect("Failed to read configuration");
     trace!("Configuration loaded: {:?}", config);
 
-    let pool_protocol = ui::PoolProtocolRW::new(RwLock::new(protocol::PoolProtocol::new(
-        protocol::serial_port(&config.port_parameters).expect("Failed to open serial port"),
+    let pool_protocol = ui::PoolProtocolRW::new(RwLock::new(pool::protocol::PoolProtocol::new(
+        pool::protocol::serial_port(&config.port_parameters).expect("Failed to open serial port"),
     )));
     trace!("Serial port opened");
     match run_server(&config.comms, pool_protocol) {
