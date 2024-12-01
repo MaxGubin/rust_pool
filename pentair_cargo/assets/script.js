@@ -19,6 +19,13 @@ function setupWebSocket() {
   const socket = new WebSocket(ws_url);
   socket.addEventListener('open', (event) => {
       console.log('Connected to the server');
+      const connection_status = document.getElementById("connection-status");
+      Array.from(connection_status.classList).forEach(
+        cn=>{connection_status.classList.remove(cn);}  
+      );
+      connection_status.classList.add("connected");
+      connection_status.innerHTML="Connected";
+
   });
 
   socket.addEventListener('message', (event) => {

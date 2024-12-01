@@ -1,22 +1,30 @@
 body {
   .button {
     background-color: #04AA6D; /* Green */
-    }
-    .button.on {
-    background-color: #f44336; /* Red */ 
-    }
   }
-}
-
+  .button.on {
+    background-color: #f44336; /* Red */ 
+  }
   .connecting {
+    display: flex;
+    justify-content: flex-end;
+    width: 30ch;
     background-color: #04aa6d;
     text-align: right;
   }
   .connected {
+    display: flex;
+    justify-content: flex-end;
+    width: 30ch;
     background-color: #04aa6d;
     text-align: right;
   }
   .disconnected {
+    display: flex;
+    justify-content: flex-end;
+    width: 30ch;
     background-color: #ff0000;
     text-align: right;
   }
+}
+
