@@ -35,6 +35,10 @@ function setupWebSocket() {
 
   socket.addEventListener('close', (event) => {
       console.log('Disconnected from the server');
+      const connection_status = document.getElementById("connection-status");
+      connection_status.classList.remove("connected");
+      connection_status.classList.add("disconnected");
+      connection_status.innerHTML="Disconnected";
   });
 
   socket.addEventListener('error', (event) => {
