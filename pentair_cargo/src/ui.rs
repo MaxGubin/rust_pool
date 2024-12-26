@@ -2,7 +2,6 @@
 
 use log::{error, trace};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
 
 use crate::pool::protocol;
 use askama::Template;
@@ -14,8 +13,6 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse},
 };
-
-pub type PoolProtocolRW = Arc<RwLock<protocol::PoolProtocol>>;
 
 // The result structure from the form.
 #[derive(Deserialize, Debug)]
@@ -91,6 +88,13 @@ pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl Int
     };
     trace!("Replied with a state {:?}", state);
     Json(state).into_response()
+}
+
+pub async fn log_json(State(pool_protocol): State<PoolProtocolRW>) -> impl IntoResponse {
+    trace!("Calling log");
+    let packet_log = pool_protocol.read().unwrap().get_recent_packets();
+    trace!("Replied with log of size {}", packet_log.len());
+    Json(packet_log).into_response()
 }
 
 pub async fn ws_handler(

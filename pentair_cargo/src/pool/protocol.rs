@@ -1,7 +1,7 @@
 use crate::config;
-use log::{error, warn};
-use serial::{self, Error, SerialPort};
-use std::io::Read;
+use chrono::{DateTime, Local};
+use log::{debug, error, trace, warn};
+use serde::Serialize;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 pub fn serial_port(
@@ -138,6 +138,12 @@ impl SystemState {
     }
 }
 
+#[derive(Clone, Serialize)]
+pub struct PacketLogElement {
+    packet_content: Vec<u8>,
+    timestamp: DateTime<Local>,
+}
+
 pub struct PoolProtocol {
     port: serial::SystemPort,
     // This is the only one thread that reads/writes the port.
@@ -148,7 +154,7 @@ pub struct PoolProtocol {
     version: u32,
 
     /// Keep a few recent packets for debugging/logging.
-    recent_packets: Vec<Vec<u8>>,
+    recent_packets: Vec<PacketLogElement>,
 
     /// Different counters with protocol errors.
     unrecognized_bytes: AtomicU32,
@@ -180,68 +186,15 @@ impl PoolProtocol {
         self.system_state.clone()
     }
 
-    pub fn get_recent_packets(&self) -> Vec<Vec<u8>> {
+    pub fn get_recent_packets(&self) -> Vec<PacketLogElement> {
         self.recent_packets.clone()
-    }
-
-    fn scan_for_header(&mut self) -> Result<(), serial::Error> {
-        const HEADER: [u8; 4] = [0xFF, 0x00, 0xFF, 0xA5];
-        let mut byte = [0; 1];
-        let mut buffer = Vec::with_capacity(HEADER.len());
-        loop {
-            self.port.read(&mut byte[..])?;
-            buffer.push(byte[0]);
-            if buffer.len() == HEADER.len() {
-                if buffer == HEADER {
-                    break;
-                } else {
-                    buffer.remove(0);
-                    self.unrecognized_bytes.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn read_packet(&mut self) -> Result<Vec<u8>, serial::Error> {
-        self.scan_for_header()?;
-        const USUAL_PACKET_SIZE: usize = 32;
-        let mut buffer: Vec<u8> = Vec::with_capacity(USUAL_PACKET_SIZE);
-        let mut byte: [u8; 1] = [0];
-        for _ in 0..4 {
-            self.port.read_exact(&mut byte[..])?;
-            buffer.push(byte[0]);
-        }
-        let to_read_len = buffer[4] as usize;
-        for _ in 0..to_read_len {
-            self.port.read_exact(&mut byte[..])?;
-            buffer.push(byte[0]);
-        }
-
-        // Checksum
-        self.port.read_exact(&mut byte[..])?;
-        let mut checksum: u16 = 256 * (byte[0] as u16);
-        self.port.read_exact(&mut byte[..])?;
-        checksum += byte[0] as u16;
-        for b in buffer.iter() {
-            checksum -= *b as u16;
-        }
-        if checksum != 0 {
-            self.corrupted_packets.fetch_add(1, Ordering::Relaxed);
-            return Err(serial::Error::new(
-                serial::ErrorKind::InvalidInput,
-                "Checksum error",
-            ));
-        }
-
-        Ok(buffer)
     }
 
     fn process_packet(&mut self, packet: &Vec<u8>) {
         const MINIMUM_PACKET_SIZE: usize = 4;
         const PROTOCOL_OFFSET: usize = 0;
         const COMMAND_OFFSET: usize = 3;
-        if packet.len() < 4 {
+        if packet.len() < MINIMUM_PACKET_SIZE {
             warn!("Got a short packet");
             self.short_packets.fetch_add(1, Ordering::Relaxed);
             return;
@@ -288,22 +241,14 @@ impl PoolProtocol {
         true
     }
 
-    pub fn port_read_thread(&mut self) {
-        loop {
-            match self.read_packet() {
-                Ok(packet) => {
-                    // save the packet for debugging/logging
-                    self.recent_packets.push(packet.clone());
-                    if self.recent_packets.len() > 10 {
-                        self.recent_packets.remove(0);
-                    }
-                    self.process_packet(&packet);
-                }
-                Err(e) => {
-                    error!("Failed to read packet: {}", e);
-                }
-            }
-            //
+    fn log_packet(&mut self, pckt: &Vec<u8>) {
+        self.recent_packets.push(PacketLogElement {
+            packet_content: pckt.clone(),
+            timestamp: Local::now(),
+        });
+
+        if self.recent_packets.len() > 10 {
+            self.recent_packets.remove(0);
         }
     }
 }

@@ -5,6 +5,7 @@ use simplelog::{CombinedLogger, Config, LevelFilter, SharedLogger, SimpleLogger,
 use std::fs::File;
 use std::path::PathBuf;
 use std::sync::RwLock;
+use std::thread;
 use tower_http::services::ServeDir;
 
 // A thread/
@@ -65,6 +66,8 @@ fn main() {
     let pool_protocol = ui::PoolProtocolRW::new(RwLock::new(pool::protocol::PoolProtocol::new(
         pool::protocol::serial_port(&config.port_parameters).expect("Failed to open serial port"),
     )));
+    thread::spawn(|| pool_protocol.port_read_thread());
+
     trace!("Serial port opened");
     match run_server(&config.comms, pool_protocol) {
         Ok(()) => info!("Successfully stopping"),
@@ -81,6 +84,7 @@ pub async fn run_server(
         .route("/", get(ui::serve_status))
         .route("/control", post(ui::control_command))
         .route("/state", get(ui::state_json))
+        .route("/log", get(ui::log_json))
         .route("/ws", any(ui::ws_handler))
         .with_state(pool_protocol)
         .nest_service("/assets", ServeDir::new("assets"));
