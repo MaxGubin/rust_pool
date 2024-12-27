@@ -63,10 +63,13 @@ fn main() {
     let config = config::read_configuration(&args.config).expect("Failed to read configuration");
     trace!("Configuration loaded: {:?}", config);
 
-    let pool_protocol = ui::PoolProtocolRW::new(RwLock::new(pool::protocol::PoolProtocol::new(
-        pool::protocol::serial_port(&config.port_parameters).expect("Failed to open serial port"),
-    )));
-    thread::spawn(|| pool_protocol.port_read_thread());
+    let pool_protocol = pool::PoolProtocolRW::new(RwLock::new(pool::protocol::PoolProtocol::new()));
+    let port =
+        pool::protocol::serial_port(&config.port_parameters).expect("Failed to open serial port");
+    {
+        let p1 = pool_protocol.clone();
+        thread::spawn(move || pool::serial::port_read_thread(port, p1));
+    }
 
     trace!("Serial port opened");
     match run_server(&config.comms, pool_protocol) {
@@ -78,7 +81,7 @@ fn main() {
 #[tokio::main]
 pub async fn run_server(
     config: &config::config_json::Comms,
-    pool_protocol: ui::PoolProtocolRW,
+    pool_protocol: pool::PoolProtocolRW,
 ) -> Result<(), std::io::Error> {
     let app = Router::new()
         .route("/", get(ui::serve_status))

@@ -1,8 +1,9 @@
+use crate::pool::PoolProtocolRW;
 use log::{debug, error, trace, warn};
 use serial::{self, Error, SerialPort};
 use std::io::Read;
 
-fn scan_for_header(port: serial::SystemPort) -> Result<(), serial::Error> {
+fn scan_for_header(port: &mut serial::SystemPort) -> Result<(), serial::Error> {
     trace!("Waiting for a header from the port");
     const HEADER: [u8; 4] = [0xFF, 0x00, 0xFF, 0xA5];
     let mut byte = [0; 1];
@@ -16,13 +17,13 @@ fn scan_for_header(port: serial::SystemPort) -> Result<(), serial::Error> {
                 break;
             } else {
                 buffer.remove(0);
-                self.unrecognized_bytes.fetch_add(1, Ordering::Relaxed);
+                //self.unrecognized_bytes.fetch_add(1, Ordering::Relaxed);
             }
         }
     }
     Ok(())
 }
-fn read_packet(port: serial::SystemPort) -> Result<Vec<u8>, serial::Error> {
+fn read_packet(port: &mut serial::SystemPort) -> Result<Vec<u8>, serial::Error> {
     scan_for_header(port)?;
     const USUAL_PACKET_SIZE: usize = 32;
     let mut buffer: Vec<u8> = Vec::with_capacity(USUAL_PACKET_SIZE);
@@ -46,7 +47,7 @@ fn read_packet(port: serial::SystemPort) -> Result<Vec<u8>, serial::Error> {
         checksum -= *b as u16;
     }
     if checksum != 0 {
-        self.corrupted_packets.fetch_add(1, Ordering::Relaxed);
+        //self.corrupted_packets.fetch_add(1, Ordering::Relaxed);
         return Err(serial::Error::new(
             serial::ErrorKind::InvalidInput,
             "Checksum error",
@@ -56,15 +57,15 @@ fn read_packet(port: serial::SystemPort) -> Result<Vec<u8>, serial::Error> {
     Ok(buffer)
 }
 
-pub fn port_read_thread(port: serial::SystemPort) {
+pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtocolRW) {
     trace!("Pool monitor thread started");
     loop {
-        match read_packet(port) {
+        match read_packet(&mut port) {
             Ok(packet) => {
                 trace!("Received a correct packet");
-                // save the packet for debugging/logging
-                self.log_packet(&packet);
-                self.process_packet(&packet);
+                let mut pool = pool_protocol.write().unwrap();
+                pool.log_packet(&packet);
+                pool.process_packet(&packet);
             }
             Err(e) => {
                 error!("Failed to read packet: {}", e);

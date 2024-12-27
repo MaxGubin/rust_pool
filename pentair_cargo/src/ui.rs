@@ -3,7 +3,7 @@
 use log::{error, trace};
 use serde::{Deserialize, Serialize};
 
-use crate::pool::protocol;
+use crate::pool::PoolProtocolRW;
 use askama::Template;
 use futures_util::{stream::StreamExt, SinkExt};
 

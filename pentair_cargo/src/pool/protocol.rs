@@ -2,6 +2,7 @@ use crate::config;
 use chrono::{DateTime, Local};
 use log::{debug, error, trace, warn};
 use serde::Serialize;
+use serial::{self, Error, SerialPort};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 pub fn serial_port(
@@ -145,7 +146,6 @@ pub struct PacketLogElement {
 }
 
 pub struct PoolProtocol {
-    port: serial::SystemPort,
     // This is the only one thread that reads/writes the port.
     // communication_thread: std::thread::JoinHandle,
     system_state: SystemState,
@@ -167,9 +167,8 @@ pub struct PoolProtocol {
 }
 
 impl PoolProtocol {
-    pub fn new(port: serial::SystemPort) -> PoolProtocol {
+    pub fn new() -> PoolProtocol {
         PoolProtocol {
-            port,
             system_state: SystemState::new(),
             version: 0,
             recent_packets: Vec::new(),
@@ -190,7 +189,7 @@ impl PoolProtocol {
         self.recent_packets.clone()
     }
 
-    fn process_packet(&mut self, packet: &Vec<u8>) {
+    pub fn process_packet(&mut self, packet: &Vec<u8>) {
         const MINIMUM_PACKET_SIZE: usize = 4;
         const PROTOCOL_OFFSET: usize = 0;
         const COMMAND_OFFSET: usize = 3;
@@ -241,7 +240,7 @@ impl PoolProtocol {
         true
     }
 
-    fn log_packet(&mut self, pckt: &Vec<u8>) {
+    pub fn log_packet(&mut self, pckt: &Vec<u8>) {
         self.recent_packets.push(PacketLogElement {
             packet_content: pckt.clone(),
             timestamp: Local::now(),
