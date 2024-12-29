@@ -6,6 +6,15 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name="pentair"
+path="src/main.rs"
+
+# Debug binary that sends specific sequence 
+[[bin]]
+name="port_debug"
+path="debug/port_debug.rs"
+
 [dependencies]
 askama = "0.12.1"
 axum = {version="0.7.5", features = ["ws"]}
