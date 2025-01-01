@@ -53,7 +53,8 @@ impl SystemState {
             solar_temp: 0,
         }
     }
-    fn from_packet(packet: &Vec<u8>) -> Result<SystemState, serial::Error> {
+    fn from_packet(packet: &[u8]) -> Result<SystemState, serial::Error> {
+        debug!("Processing packet {:?}", packet);
         if packet.len() < 7 {
             return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
@@ -61,7 +62,7 @@ impl SystemState {
             ));
         }
         const PROTOCOL_OFFSET: usize = 0;
-        if packet[PROTOCOL_OFFSET] != 0x00 || packet[PROTOCOL_OFFSET] != 0x01 {
+        if packet[PROTOCOL_OFFSET] != 0x00 && packet[PROTOCOL_OFFSET] != 0x01 {
             return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Invalid protocol",
@@ -189,7 +190,8 @@ impl PoolProtocol {
         self.recent_packets.clone()
     }
 
-    pub fn process_packet(&mut self, packet: &Vec<u8>) {
+    pub fn process_packet(&mut self, packet: &[u8]) {
+        debug!("Processing packet {:?}", packet);
         const MINIMUM_PACKET_SIZE: usize = 4;
         const PROTOCOL_OFFSET: usize = 0;
         const COMMAND_OFFSET: usize = 3;
@@ -198,7 +200,7 @@ impl PoolProtocol {
             self.short_packets.fetch_add(1, Ordering::Relaxed);
             return;
         }
-        if packet[PROTOCOL_OFFSET] != 0x00 || packet[PROTOCOL_OFFSET] != 0x01 {
+        if packet[PROTOCOL_OFFSET] != 0x00 && packet[PROTOCOL_OFFSET] != 0x01 {
             warn!("Got a packet with invalid protocol");
             self.unknown_protocol.fetch_add(1, Ordering::Relaxed);
             return;
@@ -215,15 +217,6 @@ impl PoolProtocol {
             },
             _ => {
                 warn!("Got a packet with unknown command");
-            }
-        }
-        {}
-        match SystemState::from_packet(packet) {
-            Ok(state) => {
-                self.system_state = state;
-            }
-            Err(e) => {
-                error!("Failed to process packet: {}", e);
             }
         }
     }
