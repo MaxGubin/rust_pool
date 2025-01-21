@@ -56,4 +56,6 @@ function read_state(state_data) {
         button.classList.add(state? 'on': 'off');
     }
 }
-
+function showLog() {
+  alert("Show log");
+}

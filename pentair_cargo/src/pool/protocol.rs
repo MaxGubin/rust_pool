@@ -230,12 +230,13 @@ impl PoolProtocol {
         if control_name == "spa" {
             self.system_state.spa_on = state;
         }
+        let mut _packet = vec![0x0];
         true
     }
 
-    pub fn log_packet(&mut self, pckt: &Vec<u8>) {
+    pub fn log_packet(&mut self, pckt: &[u8]) {
         self.recent_packets.push(PacketLogElement {
-            packet_content: pckt.clone(),
+            packet_content: pckt.to_vec(),
             timestamp: Local::now(),
         });
 
