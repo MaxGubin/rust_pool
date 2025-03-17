@@ -3,6 +3,8 @@ use log::{debug, error, trace};
 use serial::{self};
 use std::io::{ErrorKind, Read};
 
+
+/// Status from processing serial input.
 #[derive(PartialEq)]
 enum HeaderScan {
     BusAvailable,
@@ -36,6 +38,8 @@ fn scan_for_header(port: &mut serial::SystemPort) -> Result<HeaderScan, serial::
     }
     Ok(HeaderScan::GoodHeader)
 }
+
+
 fn read_packet(port: &mut serial::SystemPort) -> Result<Vec<u8>, serial::Error> {
     const USUAL_PACKET_SIZE: usize = 32;
     let mut buffer: Vec<u8> = Vec::with_capacity(USUAL_PACKET_SIZE);

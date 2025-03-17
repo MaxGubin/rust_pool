@@ -65,7 +65,7 @@ impl SystemState {
         if packet[PROTOCOL_OFFSET] != 0x00 && packet[PROTOCOL_OFFSET] != 0x01 {
             return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
-                "Invalid protocol",
+                "Invalid protocol version",
             ));
         }
 
