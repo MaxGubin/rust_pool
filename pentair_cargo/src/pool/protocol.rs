@@ -18,7 +18,7 @@ pub fn serial_port(
         flow_control: serial::FlowNone,
     };
 
-    let mut port = serial::open(port_name).unwrap();
+    let mut port = serial::open(port_name)?;
     port.configure(&settings)?;
     Ok(port)
 }
