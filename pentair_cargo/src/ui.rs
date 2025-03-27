@@ -126,7 +126,7 @@ pub async fn ws_handler(
                         temperatures: state.get_temperatures(),
                     };
                     let json = serde_json::to_string(&sstate).unwrap();
-                    tx.send(Message::Text(json)).await.unwrap();
+                    tx.send(Message::Text(json.into())).await.unwrap();
                 }
                 Message::Binary(_) => {
                     trace!("Got a binary message");

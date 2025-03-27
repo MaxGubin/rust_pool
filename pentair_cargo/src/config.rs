@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod config_json;
 mod controller;
+pub mod mobile_app;
 
 /// Config constants
 

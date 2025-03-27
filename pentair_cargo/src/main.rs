@@ -60,6 +60,7 @@ fn main() {
         "User's Username        whoami::username():    {}",
         whoami::username(),
     );
+    info_external_ip();
     let config = config::read_configuration(&args.config).expect("Failed to read configuration");
     trace!("Configuration loaded: {:?}", config);
 
@@ -76,6 +77,12 @@ fn main() {
         Ok(()) => info!("Successfully stopping"),
         Err(e) => error!("Failed {}", e),
     }
+}
+
+#[tokio::main]
+pub async fn info_external_ip() {
+    let external_ip = config::mobile_app::get_external_ip().await;
+    info!("External ip {:?}", external_ip);
 }
 
 #[tokio::main]
