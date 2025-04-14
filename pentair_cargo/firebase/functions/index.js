@@ -10,6 +10,40 @@
 const {onRequest} = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 
+const admin = require('firebase-admin');
+const functions = require('firebase-functions');
+
+admin.initializeApp();
+
+exports.storeIpInRemoteConfig = onRequest(async (req, res) => {
+  const ipAddress = req.body.ip;
+
+
+  if (!ipAddress) {
+    return res.status(400).send('IP address is required.');
+  }
+
+  const template = {
+    parameters: {
+      current_ip: {
+        defaultValue: {
+          value: ipAddress
+        }
+      }
+    }
+  };
+
+  try {
+    const result = await admin.remoteConfig().updateTemplate(template);
+    console.log('Updated Remote Config with IP:', ipAddress);
+
+    res.send('IP address stored in Remote Config.');
+  } catch (error) {
+    console.error('Error updating Remote Config:', error);
+    res.status(500).send('Failed to update Remote Config.');
+  }
+});
+
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
 

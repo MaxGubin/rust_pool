@@ -29,4 +29,22 @@ cargo build --bin port_debug
 ```
 
 
+# Firebase
 
+We use firebase to communicate with the Android application (keep configuration).
+The project name 
+
+Here is the command line to setip npm function tools:
+```bash
+
+```
+
+
+# Build on Raspberry Pi
+
+It's needed to install libssl-dev
+
+```bash
+sudo apt-get install libssl-dev
+
+```

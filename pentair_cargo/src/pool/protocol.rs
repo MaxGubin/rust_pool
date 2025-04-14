@@ -70,7 +70,7 @@ impl SystemState {
         }
 
         const DEST_OFFSET: usize = 1;
-        const SRC_OFFSET: usize = 3;
+        const SRC_OFFSET: usize = 2;
         if packet[DEST_OFFSET] != 0x0f || packet[SRC_OFFSET] != 0x10 {
             return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
@@ -146,6 +146,18 @@ pub struct PacketLogElement {
     timestamp: DateTime<Local>,
 }
 
+// An enum of different types of packets.
+pub enum PacketType {
+    Status,
+    CircuitStatusChange, // We'd ignore it.
+    CircuitStatusResponse,
+    RemoteLayoutRequest,
+    RemoteLayoutResponse,
+    ClockBroadcast,
+    PumpStatus,
+    Unknown,
+}
+
 pub struct PoolProtocol {
     // This is the only one thread that reads/writes the port.
     // communication_thread: std::thread::JoinHandle,
@@ -153,6 +165,9 @@ pub struct PoolProtocol {
 
     // The version of the system
     version: u32,
+
+    // We just sent a circuit change request and is waitng to CiercuitStatusREsponse
+    waiting_for_circuit_status_response: bool,
 
     /// Keep a few recent packets for debugging/logging.
     recent_packets: Vec<PacketLogElement>,
@@ -172,6 +187,7 @@ impl PoolProtocol {
         PoolProtocol {
             system_state: SystemState::new(),
             version: 0,
+            waiting_for_circuit_status_response: false,
             recent_packets: Vec::new(),
             unrecognized_bytes: AtomicU32::new(0),
             corrupted_packets: AtomicU32::new(0),
@@ -221,6 +237,33 @@ impl PoolProtocol {
         }
     }
 
+    pub fn pocket_type(&self, packet: &[u8]) -> PacketType {
+        const MINIMUM_PACKET_SIZE: usize = 4;
+        const PROTOCOL_OFFSET: usize = 0;
+        const COMMAND_OFFSET: usize = 3;
+        const SOURCE_OFFSET: usize = 2;
+        const DEST_OFFSET: usize = 1;
+        if packet.len() < MINIMUM_PACKET_SIZE {
+            return PacketType::Unknown;
+        }
+        if packet[PROTOCOL_OFFSET] != 0x00 && packet[PROTOCOL_OFFSET] != 0x01 {
+            return PacketType::Unknown;
+        }
+
+        match packet[COMMAND_OFFSET] {
+            0x02 => PacketType::Status,
+            0x86 => PacketType::CircuitStatusChange,
+            0x01 => PacketType::CircuitStatusResponse,
+            0xE1 => PacketType::RemoteLayoutRequest,
+            0x21 => PacketType::RemoteLayoutResponse,
+            0x05 => PacketType::ClockBroadcast,
+            0x07 => PacketType::PumpStatus,
+            _ => PacketType::Unknown,
+        }
+    }
+
+    /// Checks
+
     // Changes a state of a control. Returns back True if it was changed, false if it was not
     // changed yet.
     pub fn change_circuit(&mut self, control_name: &str, state: bool) -> bool {
@@ -243,14 +286,6 @@ impl PoolProtocol {
         if self.recent_packets.len() > 10 {
             self.recent_packets.remove(0);
         }
-    }
-}
-
-impl Iterator for PoolProtocol {
-    type Item = SystemState;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.get_state())
     }
 }
 

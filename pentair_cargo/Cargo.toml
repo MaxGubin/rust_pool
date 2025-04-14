@@ -16,7 +16,7 @@ name="port_debug"
 path="debug/port_debug.rs"
 
 [dependencies]
-askama = "0.12.1"
+askama = "0.13"
 axum = {version="0.8", features = ["ws"]}
 axum-server = {version="0.7.1", features=["tls-rustls"]}
 bytes = "1"
