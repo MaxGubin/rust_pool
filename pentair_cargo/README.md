@@ -27,7 +27,11 @@ Building:
 cargo build --bin port_debug
 
 ```
+Example of sending a correct packet over the port:
 
+```bash
+target/debug/port_debug --hex-string=FF00FFA501104886020101018
+```
 
 # Firebase
 

@@ -1,0 +1,15 @@
+<table><thead>
+    <tr>
+      <th>Timestamp</th>
+      <th>Message</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for log in logs %}
+      <tr>
+        <td>{{ log.timestamp }}</td>
+        <td>{{ log.message }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>

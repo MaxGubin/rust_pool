@@ -3,7 +3,7 @@
 use log::{error, trace};
 use serde::{Deserialize, Serialize};
 
-use crate::pool::PoolProtocolRW;
+use crate::pool::{protocol::PacketLogElement, PoolProtocolRW};
 use askama::Template;
 use futures_util::{stream::StreamExt, SinkExt};
 
@@ -90,11 +90,17 @@ pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl Int
     Json(state).into_response()
 }
 
+#[derive(Template)]
+#[template(path = "logs_table.html")]
+struct LogsTemplate<'a> {
+    pub logs: &'a Vec<PacketLogElement>,
+}
+
 pub async fn log_json(State(pool_protocol): State<PoolProtocolRW>) -> impl IntoResponse {
     trace!("Calling log");
-    let packet_log = pool_protocol.read().unwrap().get_recent_packets();
-    trace!("Replied with log of size {}", packet_log.len());
-    Json(packet_log).into_response()
+    let template = LogTemplate {
+        logs: pool_protocol.read().unwrap().get_recent_packets(),
+    };
 }
 
 pub async fn ws_handler(

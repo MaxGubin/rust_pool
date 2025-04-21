@@ -1,6 +1,6 @@
 {
     "comms": {
-        "http_listen_address": "127.0.0.1:3000",
+        "http_listen_address": "0.0.0.0:3000",
         "cert_path": "cert/cert.pem",
         "key_path": "cert/key.pem"
     },
