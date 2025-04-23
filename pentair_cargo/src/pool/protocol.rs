@@ -142,8 +142,8 @@ impl SystemState {
 
 #[derive(Clone, Serialize)]
 pub struct PacketLogElement {
-    packet_content: Vec<u8>,
-    timestamp: DateTime<Local>,
+    pub packet_content: Vec<u8>,
+    pub timestamp: DateTime<Local>,
 }
 
 // An enum of different types of packets.

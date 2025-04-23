@@ -7,8 +7,8 @@
   <tbody>
     {% for log in logs %}
       <tr>
-        <td>{{ log.timestamp }}</td>
-        <td>{{ log.message }}</td>
+        <td>{{ log.timestamp.format("%Y-%m-%d %H:%M:%S").to_string() }}</td>
+        <td>{{ self.vec_u8_to_hex_string(log.packet_content) }}</td>
       </tr>
     {% endfor %}
   </tbody>

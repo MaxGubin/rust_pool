@@ -92,15 +92,36 @@ pub async fn state_json(State(pool_protocol): State<PoolProtocolRW>) -> impl Int
 
 #[derive(Template)]
 #[template(path = "logs_table.html")]
-struct LogsTemplate<'a> {
-    pub logs: &'a Vec<PacketLogElement>,
+struct LogsTemplate {
+    pub logs: Vec<PacketLogElement>,
+}
+
+impl LogsTemplate {
+    // This function is used inside the template.
+    fn vec_u8_to_hex_string(&self, bytes: &Vec<u8>) -> String {
+        bytes
+            .iter() // Get an iterator over the bytes (&u8)
+            .map(|byte| format!("{:02x}", byte)) // Format each byte to a hex String
+            .collect::<String>() // Collect the strings into a single String
+    }
 }
 
 pub async fn log_json(State(pool_protocol): State<PoolProtocolRW>) -> impl IntoResponse {
     trace!("Calling log");
-    let template = LogTemplate {
+    let template = LogsTemplate {
         logs: pool_protocol.read().unwrap().get_recent_packets(),
     };
+    match template.render() {
+        Ok(html) => Html(html).into_response(),
+        Err(err) => {
+            error!("Template processing error {}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to render a template. Error {}", err),
+            )
+                .into_response()
+        }
+    }
 }
 
 pub async fn ws_handler(
