@@ -56,6 +56,20 @@ function read_state(state_data) {
         button.classList.add(state? 'on': 'off');
     }
 }
-function showLog() {
+
+async function showLog() {
+  const urlToFetch = '/log';
+  try {
+    const response = await fetch(urlToFetch);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const html = await response.text();
+    const logDisplay = document.getElementById('logdiv');
+    logDisplay.innerHTML = html; // Display the log content in the textarea
+    logDisplay.style.display = "block";
+  } catch (error) {
+    console.error('Error fetching log:', error);
+  }
   alert("Show log");
 }
