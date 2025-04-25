@@ -71,5 +71,10 @@ async function showLog() {
   } catch (error) {
     console.error('Error fetching log:', error);
   }
-  alert("Show log");
+}
+
+
+function closeLog() {
+    const logDisplay = document.getElementById('logdiv');
+    logDisplay.style.display = "none";
 }
