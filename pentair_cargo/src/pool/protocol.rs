@@ -5,6 +5,8 @@ use serde::Serialize;
 use serial::{self, Error, SerialPort};
 use std::sync::atomic::{AtomicU32, Ordering};
 
+
+/// Creates a serial port from the  configuration.
 pub fn serial_port(
     parameters: &config::config_json::PortParameters,
 ) -> Result<serial::SystemPort, serial::Error> {
@@ -23,139 +25,86 @@ pub fn serial_port(
     Ok(port)
 }
 
-#[derive(Clone, Debug)]
-pub struct SystemState {
-    // Version of the system's configururation, if changed, the circuits can be renamed.
-    version: u32,
 
-    // Different switches, usually in the state on/off
-    pool_on: bool,
-    spa_on: bool,
-    aux_circuits: Vec<bool>,
-    feature_circuits: Vec<bool>,
 
-    // Block of temperatures
-    water_temp: u32,
-    air_temp: u32,
-    solar_temp: u32,
-}
 
-impl SystemState {
-    fn new() -> SystemState {
-        SystemState {
-            version: 0,
-            pool_on: false,
-            spa_on: false,
-            aux_circuits: Vec::new(),
-            feature_circuits: Vec::new(),
-            water_temp: 0,
-            air_temp: 0,
-            solar_temp: 0,
-        }
-    }
-    fn from_packet(packet: &[u8]) -> Result<SystemState, serial::Error> {
-        debug!("Processing packet {:?}", packet);
-        if packet.len() < 7 {
-            return Err(Error::new(
-                serial::ErrorKind::InvalidInput,
-                "Packet too short",
-            ));
-        }
-        const PROTOCOL_OFFSET: usize = 0;
-        if packet[PROTOCOL_OFFSET] != 0x00 && packet[PROTOCOL_OFFSET] != 0x01 {
-            return Err(Error::new(
-                serial::ErrorKind::InvalidInput,
-                "Invalid protocol version",
-            ));
-        }
 
-        const DEST_OFFSET: usize = 1;
-        const SRC_OFFSET: usize = 2;
-        if packet[DEST_OFFSET] != 0x0f || packet[SRC_OFFSET] != 0x10 {
-            return Err(Error::new(
-                serial::ErrorKind::InvalidInput,
-                "Invalid destination or source",
-            ));
-        }
-
-        const CMD_OFFSET: usize = 3;
-        const SYSTEM_STATUS_CMD: u8 = 0x02;
-        if packet[CMD_OFFSET] != SYSTEM_STATUS_CMD {
-            return Err(Error::new(
-                serial::ErrorKind::InvalidInput,
-                "Invalid command",
-            ));
-        }
-
-        let mut state = Self::new();
-
-        const MASK_IDX: usize = 7;
-        const SPA_MASK: u8 = 0x01;
-        const AUX1_MASK: u8 = 0x02;
-        const AUX2_MASK: u8 = 0x04;
-        const AUX3_MASK: u8 = 0x08;
-        const POOL_MASK: u8 = 0x20;
-        const FEATURE1_MASK: u8 = 0x10;
-        const FEATURE2_MASK: u8 = 0x40;
-        const FEATURE3_MASK: u8 = 0x80;
-
-        {
-            state.pool_on = (packet[MASK_IDX] & POOL_MASK) != 0;
-            state.spa_on = (packet[MASK_IDX] & SPA_MASK) != 0;
-            state.aux_circuits.push((packet[MASK_IDX] & AUX1_MASK) != 0);
-            state.aux_circuits.push((packet[MASK_IDX] & AUX2_MASK) != 0);
-            state.aux_circuits.push((packet[MASK_IDX] & AUX3_MASK) != 0);
-            state
-                .feature_circuits
-                .push((packet[MASK_IDX] & FEATURE1_MASK) != 0);
-            state
-                .feature_circuits
-                .push((packet[MASK_IDX] & FEATURE2_MASK) != 0);
-            state
-                .feature_circuits
-                .push((packet[MASK_IDX] & FEATURE3_MASK) != 0);
-        }
-
-        Ok(state)
-    }
-    pub fn get_version(&self) -> u32 {
-        self.version
-    }
-
-    // Checks the current state
-    pub fn get_controls_state(&self) -> Vec<(String, bool)> {
-        vec![
-            ("pool".to_string(), self.pool_on),
-            ("spa".to_string(), self.spa_on),
-        ]
-    }
-
-    //
-    pub fn get_temperatures(&self) -> Vec<(String, f32)> {
-        vec![
-            ("water".to_string(), 82.),
-            ("air".to_string(), 72.),
-            ("solar".to_string(), 83.),
-        ]
-    }
-}
-
-#[derive(Clone, Serialize)]
-pub struct PacketLogElement {
-    pub packet_content: Vec<u8>,
-    pub timestamp: DateTime<Local>,
-}
-
-// An enum of different types of packets.
 pub enum PacketType {
-    Status,
-    CircuitStatusChange, // We'd ignore it.
+    Status(SystemState),
+    CircuitStatusChange(), // We'd ignore it.
     CircuitStatusResponse,
     RemoteLayoutRequest,
     RemoteLayoutResponse,
     ClockBroadcast,
     PumpStatus,
     Unknown,
+}
+
+#[derive(Clone, Debug)]
+pub struct ProtocolPacket{
+    packet_content: Vec<u8>,  
+    decoded: PacketType
+}
+
+impl ProtocolPacket {
+    const PROTOCOL_OFFSET: usize = 0;
+    const DEST_OFFSET: usize = 1;
+    const SRC_OFFSET: usize = 2;
+    const CMD_OFFSET: usize = 3;
+    pub fn new(packet: &[u8]) -> ProtocolPacket {
+        ProtocolPacket {
+            packet_content: packet.to_vec(),
+            decoded: PacketType::Unknown,
+        }
+    }
+    pub fn get_source(&self) -> u8 {
+        if self.packet_content.len() < SRC_OFFSET {
+            return 0;
+        }
+        self.packet_content[SRC_OFFSET]
+    }
+    pub fn get_destination(&self) -> u8 {
+        if self.packet_content.len() < DEST_OFFSET {
+            return 0;
+        }
+        self.packet_content[DEST_OFFSET]
+    }
+
+    pub fn get_protocol_version(&self) -> u8 {
+        if self.packet_content.len() < 1 {
+            return 0;
+        }
+        self.packet_content[0]
+    }
+
+    pub fn decode_packet(&mut self) -> Result<ProtocolPacket, serial::Error> {
+        self.decoded = PacketType::Unknown;
+        if self.packet_content.len() < 4 {
+            return Err(Error::new(
+                serial::ErrorKind::InvalidInput,
+                "Packet is too short (decode_packet)",
+            ));
+        }
+        self.decoded = match(self.packet_content[CMD_OFFSET]) {
+            0x02 => PacketType::Status(SystemState::from_packet(&self.packet_content).unwrap()),
+            0x86 => PacketType::CircuitStatusChange,
+            0x01 => PacketType::CircuitStatusResponse,
+            0xE1 => PacketType::RemoteLayoutRequest,
+            0x21 => PacketType::RemoteLayoutResponse,
+            0x05 => PacketType::ClockBroadcast,
+            0x07 => PacketType::PumpStatus,
+            _ => PacketType::Unknown,
+
+        }?;
+        self
+    }
+
+}
+
+#[derive(Clone, Serialize)]
+pub struct PacketLogElement {
+    pub packet_content: Vec<u8>,
+    pub timestamp: DateTime<Local>,
 }
 
 pub struct PoolProtocol {
@@ -289,28 +238,3 @@ impl PoolProtocol {
     }
 }
 
-#[cfg(test)]
-#[test]
-fn test_system_state_from_packet() {
-    let packet = vec![
-        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x00,
-        0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x53, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-        0x00, 0x00, 0x00, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5F, 0x00, 0x00, 0x00,
-        0x3C, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x0b, 0x00, 0x00, 0x00, 0xf4, 0x01, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf5, 0x01, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00,
-    ];
-
-    // \\x00\\xf6\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x02\\x00\\xf7\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x06\\x01\\n\\x00\\xf8\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xf9\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfa\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfb\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfc\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xfe\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x02\\x00\\x00\\x1f\\x03\\x00\\x00\\xff\\xff\\xff\\xff\\x00\\x00\\x00\\x00\\x06\\x00\\x00\\x00\\x07\\x00\\x00\\x00\\x00\\x00\\x00\\x00'"
-
-    let state = SystemState::from_packet(&packet).unwrap();
-    assert!(state.pool_on);
-    assert!(!state.spa_on);
-    assert!(state.aux_circuits[0]);
-    assert!(!state.aux_circuits[1]);
-    assert!(state.aux_circuits[2]);
-    assert!(!state.feature_circuits[0]);
-    assert!(!state.feature_circuits[1]);
-    assert!(!state.feature_circuits[2]);
-}

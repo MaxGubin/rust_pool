@@ -1,4 +1,5 @@
 pub mod protocol;
+pub mod system_state;
 pub mod serial;
 use std::sync::{Arc, RwLock};
 
