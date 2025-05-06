@@ -1,7 +1,27 @@
 use crate::pool::PoolProtocolRW;
 use log::{debug, error, trace};
 use serial::{self};
-use std::io::{ErrorKind, Read};
+use std::io::{ErrorKind, Read, Write, BufWriter};
+
+
+/// Creates a serial port from the  configuration.
+pub fn serial_port(
+    parameters: &config::config_json::PortParameters,
+) -> Result<serial::SystemPort, serial::Error> {
+    let port_name = &parameters.port_name;
+
+    let settings = serial::PortSettings {
+        baud_rate: serial::BaudRate::from_speed(parameters.baud_rate),
+        char_size: config::config_json::decode_char_size(parameters.char_size),
+        parity: config::config_json::decode_parity(parameters.parity.as_str()),
+        stop_bits: config::config_json::decode_stop_bits(parameters.stop_bits),
+        flow_control: serial::FlowNone,
+    };
+
+    let mut port = serial::open(port_name)?;
+    port.configure(&settings)?;
+    Ok(port)
+}
 
 
 /// Status from processing serial input.
@@ -76,7 +96,10 @@ fn read_packet(port: &mut serial::SystemPort) -> Result<Vec<u8>, serial::Error> 
     Ok(buffer)
 }
 
-pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtocolRW) {
+
+
+
+pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtocolRW, log_file: Option<String> ) {
     trace!("Pool monitor thread started");
     loop {
         match scan_for_header(&mut port) {

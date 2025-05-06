@@ -33,34 +33,12 @@ impl SystemState {
             solar_temp: 0,
         }
     }
-    fn from_packet(packet: &[u8]) -> Result<SystemState, serial::Error> {
+    pub fn from_packet(packet: &[u8]) -> Result<SystemState, serial::Error> {
         debug!("Processing packet {:?}", packet);
-        if packet.len() < 7 {
+        if packet.len() < 8 {
             return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Packet too short",
-            ));
-        }
-        const PROTOCOL_OFFSET: usize = 0;
-        if packet[PROTOCOL_OFFSET] != 0x00 && packet[PROTOCOL_OFFSET] != 0x01 {
-            return Err(Error::new(
-                serial::ErrorKind::InvalidInput,
-                "Invalid protocol version",
-            ));
-        }
-
-        if packet[DEST_OFFSET] != 0x0f || packet[SRC_OFFSET] != 0x10 {
-            return Err(Error::new(
-                serial::ErrorKind::InvalidInput,
-                "Invalid destination or source",
-            ));
-        }
-
-        const SYSTEM_STATUS_CMD: u8 = 0x02;
-        if packet[CMD_OFFSET] != SYSTEM_STATUS_CMD {
-            return Err(Error::new(
-                serial::ErrorKind::InvalidInput,
-                "Invalid command",
             ));
         }
 
@@ -82,7 +60,7 @@ impl SystemState {
             state.aux_circuits.push((packet[MASK_IDX] & AUX1_MASK) != 0);
             state.aux_circuits.push((packet[MASK_IDX] & AUX2_MASK) != 0);
             state.aux_circuits.push((packet[MASK_IDX] & AUX3_MASK) != 0);
-            state
+i            state
                 .feature_circuits
                 .push((packet[MASK_IDX] & FEATURE1_MASK) != 0);
             state

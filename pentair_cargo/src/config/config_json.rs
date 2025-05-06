@@ -75,4 +75,6 @@ pub struct PortParameters {
     pub stop_bits: u32,
     #[serde(default = "default_timeout_msec")]
     pub timeout_msec: u32,
+    // If not None, the packages will be saved to this file.
+    pub samples_file: Option<String>,
 }

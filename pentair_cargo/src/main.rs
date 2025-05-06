@@ -66,7 +66,7 @@ fn main() {
 
     let pool_protocol = pool::PoolProtocolRW::new(RwLock::new(pool::protocol::PoolProtocol::new()));
     let port =
-        pool::protocol::serial_port(&config.port_parameters).expect("Failed to open serial port");
+        pool::serial::serial_port(&config.port_parameters).expect("Failed to open serial port");
     {
         let p1 = pool_protocol.clone();
         thread::spawn(move || pool::serial::port_read_thread(port, p1));

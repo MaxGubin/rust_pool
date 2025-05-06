@@ -1,37 +1,20 @@
 use crate::config;
+use axum::extract::ws::close_code::PROTOCOL;
 use chrono::{DateTime, Local};
 use log::{debug, error, trace, warn};
 use serde::Serialize;
 use serial::{self, Error, SerialPort};
 use std::sync::atomic::{AtomicU32, Ordering};
 
-
-/// Creates a serial port from the  configuration.
-pub fn serial_port(
-    parameters: &config::config_json::PortParameters,
-) -> Result<serial::SystemPort, serial::Error> {
-    let port_name = &parameters.port_name;
-
-    let settings = serial::PortSettings {
-        baud_rate: serial::BaudRate::from_speed(parameters.baud_rate),
-        char_size: config::config_json::decode_char_size(parameters.char_size),
-        parity: config::config_json::decode_parity(parameters.parity.as_str()),
-        stop_bits: config::config_json::decode_stop_bits(parameters.stop_bits),
-        flow_control: serial::FlowNone,
-    };
-
-    let mut port = serial::open(port_name)?;
-    port.configure(&settings)?;
-    Ok(port)
-}
+pub mod system_state;
 
 
 
 
-
+#[derive(Clone, Debug)]
 pub enum PacketType {
-    Status(SystemState),
-    CircuitStatusChange(), // We'd ignore it.
+    Status(system_state::SystemState),
+    CircuitStatusChange, // We'd ignore it.
     CircuitStatusResponse,
     RemoteLayoutRequest,
     RemoteLayoutResponse,
@@ -46,11 +29,13 @@ pub struct ProtocolPacket{
     decoded: PacketType
 }
 
+// Block protocol offsets in the packet without any header.
+
+const PROTOCOL_OFFSET: usize = 0;
+const DEST_OFFSET: usize = 1;
+const SRC_OFFSET: usize = 2;
+const CMD_OFFSET: usize = 3;
 impl ProtocolPacket {
-    const PROTOCOL_OFFSET: usize = 0;
-    const DEST_OFFSET: usize = 1;
-    const SRC_OFFSET: usize = 2;
-    const CMD_OFFSET: usize = 3;
     pub fn new(packet: &[u8]) -> ProtocolPacket {
         ProtocolPacket {
             packet_content: packet.to_vec(),
@@ -74,19 +59,26 @@ impl ProtocolPacket {
         if self.packet_content.len() < 1 {
             return 0;
         }
-        self.packet_content[0]
+        self.packet_content[PROTOCOL_OFFSET]
     }
 
-    pub fn decode_packet(&mut self) -> Result<ProtocolPacket, serial::Error> {
-        self.decoded = PacketType::Unknown;
-        if self.packet_content.len() < 4 {
+    pub fn decode_packet(&self) -> Result<ProtocolPacket, serial::Error> {
+        let mut output = self.clone();
+        output.decoded = PacketType::Unknown;
+        if output.packet_content.len() < 4 {
             return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Packet is too short (decode_packet)",
             ));
         }
-        self.decoded = match(self.packet_content[CMD_OFFSET]) {
-            0x02 => PacketType::Status(SystemState::from_packet(&self.packet_content).unwrap()),
+        if self.get_protocol_version() != 0x00 && self.get_protocol_version() != 0x01 {
+            return Err(Error::new(
+                serial::ErrorKind::InvalidInput,
+                "Invalid protocol version",
+            ));
+        }
+        output.decoded = match(self.packet_content[CMD_OFFSET]) {
+            0x02 if self.get_source() == 0x10 && self.get_destination() == 0x0f => PacketType::Status(system_state::SystemState::from_packet(&self.packet_content)?),
             0x86 => PacketType::CircuitStatusChange,
             0x01 => PacketType::CircuitStatusResponse,
             0xE1 => PacketType::RemoteLayoutRequest,
@@ -95,8 +87,8 @@ impl ProtocolPacket {
             0x07 => PacketType::PumpStatus,
             _ => PacketType::Unknown,
 
-        }?;
-        self
+        };
+        Ok(output)
     }
 
 }
