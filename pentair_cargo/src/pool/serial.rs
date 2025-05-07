@@ -1,8 +1,7 @@
 use crate::pool::PoolProtocolRW;
-use crate::pool::message;
 use log::{debug, error, trace};
 use serial::{self};
-use std::io::{ErrorKind, Read, File, Write, BufWriter};
+use std::io::{ErrorKind, Read, Write, BufWriter};
 
 
 /// Creates a serial port from the  configuration.
@@ -111,17 +110,13 @@ impl PacketLogger {
         });
         PacketLogger { log_file, writer }
     }
-    fn log_message(&self, message: message::ProtocolPacket)-> Result<, std::io::Error> {
-        if let Some(writer) = &mut self.writer {
+    fn log_message(&self, message: message::ProtocolPacket) -> Result<(), std::io::Error> {
+        if let Some(writer) = &self.writer {
             let message_str = format!("{:?}\n", message);
             writer.write_all(message_str.as_bytes())?;
             writer.flush()?;
         }
         Ok(())
-    }
-}
-
-
     }
 }
 
@@ -149,7 +144,15 @@ pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtoco
                 let mut pool = pool_protocol.write().unwrap();
                 pool.log_packet(&packet);
                 
-                pool.process_packet(&packet);
+                match pool.process_packet(&packet) {
+                    Ok(message) => {
+                        trace!("Received a message: {:?}", message);
+                        pool.log_message(message);
+                    }
+                    Err(e) => {
+                        error!("Failed to process packet: {}", e);
+                    }
+                }
             }
             Err(e) => {
                 error!("Failed to read packet: {}", e);

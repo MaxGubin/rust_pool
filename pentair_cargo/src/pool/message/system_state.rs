@@ -1,6 +1,6 @@
 use log::{debug, error, trace, warn};
 use serde::Serialize;
-use serial::{self, Error, SerialPort};
+use serial::{self, Error};
 
 
 /// The decoded package with the system state.
