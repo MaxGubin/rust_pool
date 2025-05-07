@@ -60,7 +60,7 @@ impl SystemState {
             state.aux_circuits.push((packet[MASK_IDX] & AUX1_MASK) != 0);
             state.aux_circuits.push((packet[MASK_IDX] & AUX2_MASK) != 0);
             state.aux_circuits.push((packet[MASK_IDX] & AUX3_MASK) != 0);
-i            state
+            state
                 .feature_circuits
                 .push((packet[MASK_IDX] & FEATURE1_MASK) != 0);
             state

@@ -1,7 +1,8 @@
 use crate::pool::PoolProtocolRW;
+use crate::pool::message;
 use log::{debug, error, trace};
 use serial::{self};
-use std::io::{ErrorKind, Read, Write, BufWriter};
+use std::io::{ErrorKind, Read, File, Write, BufWriter};
 
 
 /// Creates a serial port from the  configuration.
@@ -97,10 +98,39 @@ fn read_packet(port: &mut serial::SystemPort) -> Result<Vec<u8>, serial::Error> 
 }
 
 
+struct PacketLogger {
+    log_file: Option<String>,
+    writer: Option<BufWriter<std::fs::File>>,
+}
+
+impl PacketLogger {
+    fn new(log_file: Option<String>) -> Self {
+        let writer = log_file.as_ref().map(|file_path| {
+            let file = File::create(file_path).expect("Failed to open log file");
+            BufWriter::new(file)
+        });
+        PacketLogger { log_file, writer }
+    }
+    fn log_message(&self, message: message::ProtocolPacket)-> Result<, std::io::Error> {
+        if let Some(writer) = &mut self.writer {
+            let message_str = format!("{:?}\n", message);
+            writer.write_all(message_str.as_bytes())?;
+            writer.flush()?;
+        }
+        Ok(())
+    }
+}
+
+
+    }
+}
+
 
 
 pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtocolRW, log_file: Option<String> ) {
     trace!("Pool monitor thread started");
+
+    let message_logger = PacketLogger::new(log_file); 
     loop {
         match scan_for_header(&mut port) {
             Ok(r) => {
@@ -118,6 +148,7 @@ pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtoco
                 trace!("Received a correct packet");
                 let mut pool = pool_protocol.write().unwrap();
                 pool.log_packet(&packet);
+                
                 pool.process_packet(&packet);
             }
             Err(e) => {
