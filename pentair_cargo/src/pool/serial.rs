@@ -1,4 +1,4 @@
-use crate::pool::PoolProtocolRW;
+use crate::pool::{message, PoolProtocolRW};
 use log::{debug, error, trace};
 use serial::{self};
 use std::io::{ErrorKind, Read, Write, BufWriter};
@@ -122,7 +122,7 @@ impl PacketLogger {
 
 
 
-pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtocolRW, log_file: Option<String> ) {
+pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtocolRW) {
     trace!("Pool monitor thread started");
 
     let message_logger = PacketLogger::new(log_file); 
@@ -142,18 +142,8 @@ pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtoco
             Ok(packet) => {
                 trace!("Received a correct packet");
                 let mut pool = pool_protocol.write().unwrap();
-                pool.log_packet(&packet);
-                
-                match pool.process_packet(&packet) {
-                    Ok(message) => {
-                        trace!("Received a message: {:?}", message);
-                        pool.log_message(message);
-                    }
-                    Err(e) => {
-                        error!("Failed to process packet: {}", e);
-                    }
-                }
-            }
+                pool.process_packet(packet.as_slice());
+            },
             Err(e) => {
                 error!("Failed to read packet: {}", e);
             }

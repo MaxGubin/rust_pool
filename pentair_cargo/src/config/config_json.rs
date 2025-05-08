@@ -78,3 +78,18 @@ pub struct PortParameters {
     // If not None, the packages will be saved to this file.
     pub samples_file: Option<String>,
 }
+
+
+fn default_device_id() -> u32 {
+    
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SystemParameters {
+    pub sample_file: Option<String>,
+
+    #[serde(default = "default_device_id")]
+    pub controller_id: u8,
+
+
+}

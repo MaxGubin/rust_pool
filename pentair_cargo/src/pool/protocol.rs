@@ -1,5 +1,5 @@
-use crate::config;
-use axum::extract::ws::close_code::PROTOCOL;
+use crate::{config, pool::message};
+use crate::pool::message::system_state::SystemState;
 use chrono::{DateTime, Local};
 use log::{debug, error, trace, warn};
 use serde::Serialize;
@@ -62,61 +62,28 @@ impl PoolProtocol {
 
     pub fn process_packet(&mut self, packet: &[u8]) {
         debug!("Processing packet {:?}", packet);
-        const MINIMUM_PACKET_SIZE: usize = 4;
-        const PROTOCOL_OFFSET: usize = 0;
-        const COMMAND_OFFSET: usize = 3;
-        if packet.len() < MINIMUM_PACKET_SIZE {
-            warn!("Got a short packet");
-            self.short_packets.fetch_add(1, Ordering::Relaxed);
-            return;
-        }
-        if packet[PROTOCOL_OFFSET] != 0x00 && packet[PROTOCOL_OFFSET] != 0x01 {
-            warn!("Got a packet with invalid protocol");
-            self.unknown_protocol.fetch_add(1, Ordering::Relaxed);
-            return;
-        }
-        let received_message = message::ProtocolPacket::new(packet);
-        let decoded_message = received_message.decode_packet();
-
-
-        match packet[COMMAND_OFFSET] {
-            0x02 => match SystemState::from_packet(packet) {
-                Ok(state) => {
-                    self.system_state = state;
+        match message::ProtocolPacket::decode_packet(packet) {
+            Ok(received_message) => {
+                self.log_packet(packet);
+                match received_message.decoded {
+                    message::PacketType::Status(status) => {
+                        self.system_state = status;
+                    }
+                    message::PacketType::CircuitStatusResponse => {
+                        self.waiting_for_circuit_status_response = false;
+                    }
+                    message::PacketType::Unknown => {
+                        self.unrecognized_bytes.fetch_add(1, Ordering::Relaxed);
+                    }
+                    _ => {}
                 }
-                Err(e) => {
-                    error!("Failed to process packet: {}", e);
-                }
-            },
-            _ => {
-                warn!("Got a packet with unknown command");
+            }
+            Err(e) => {
+                error!("Error decoding packet: {:?}", e);
+                self.corrupted_packets.fetch_add(1, Ordering::Relaxed);
             }
         }
-    }
 
-    pub fn pocket_type(&self, packet: &[u8]) -> PacketType {
-        const MINIMUM_PACKET_SIZE: usize = 4;
-        const PROTOCOL_OFFSET: usize = 0;
-        const COMMAND_OFFSET: usize = 3;
-        const SOURCE_OFFSET: usize = 2;
-        const DEST_OFFSET: usize = 1;
-        if packet.len() < MINIMUM_PACKET_SIZE {
-            return PacketType::Unknown;
-        }
-        if packet[PROTOCOL_OFFSET] != 0x00 && packet[PROTOCOL_OFFSET] != 0x01 {
-            return PacketType::Unknown;
-        }
-
-        match packet[COMMAND_OFFSET] {
-            0x02 => PacketType::Status,
-            0x86 => PacketType::CircuitStatusChange,
-            0x01 => PacketType::CircuitStatusResponse,
-            0xE1 => PacketType::RemoteLayoutRequest,
-            0x21 => PacketType::RemoteLayoutResponse,
-            0x05 => PacketType::ClockBroadcast,
-            0x07 => PacketType::PumpStatus,
-            _ => PacketType::Unknown,
-        }
     }
 
     /// Checks
@@ -125,10 +92,10 @@ impl PoolProtocol {
     // changed yet.
     pub fn change_circuit(&mut self, control_name: &str, state: bool) -> bool {
         if control_name == "pool" {
-            self.system_state.pool_on = state;
+          //  self.system_state.pool_on = state;
         }
         if control_name == "spa" {
-            self.system_state.spa_on = state;
+          //  self.system_state.spa_on = state;
         }
         let mut _packet = vec![0x0];
         true

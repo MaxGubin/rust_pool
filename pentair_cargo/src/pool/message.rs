@@ -1,4 +1,5 @@
 
+use serial::Error;
 pub mod system_state;
 
 
@@ -53,33 +54,32 @@ impl ProtocolPacket {
         self.packet_content[PROTOCOL_OFFSET]
     }
 
-    pub fn decode_packet(&self) -> Result<ProtocolPacket, serial::Error> {
-        let mut output = self.clone();
-        output.decoded = PacketType::Unknown;
-        if output.packet_content.len() < 4 {
+    pub fn decode_packet(packet: &[u8] ) -> Result<ProtocolPacket, serial::Error> {
+        if packet.len() < 4 {
             return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Packet is too short (decode_packet)",
             ));
         }
-        if self.get_protocol_version() != 0x00 && self.get_protocol_version() != 0x01 {
+        if packet[PROTOCOL_OFFSET] != 0x00 && packet[PROTOCOL_OFFSET] != 0x01 {
             return Err(Error::new(
                 serial::ErrorKind::InvalidInput,
                 "Invalid protocol version",
             ));
         }
-        output.decoded = match(self.packet_content[CMD_OFFSET]) {
-            0x02 if self.get_source() == 0x10 && self.get_destination() == 0x0f => PacketType::Status(system_state::SystemState::from_packet(&self.packet_content)?),
-            0x86 => PacketType::CircuitStatusChange,
-            0x01 => PacketType::CircuitStatusResponse,
-            0xE1 => PacketType::RemoteLayoutRequest,
-            0x21 => PacketType::RemoteLayoutResponse,
-            0x05 => PacketType::ClockBroadcast,
-            0x07 => PacketType::PumpStatus,
-            _ => PacketType::Unknown,
-
-        };
-        Ok(output)
+        Ok(ProtocolPacket{
+            packet_content: packet.to_vec(),
+            decoded: match packet[CMD_OFFSET] {
+                0x02 if packet[SRC_OFFSET] == 0x10 && packet[DEST_OFFSET] == 0x0f => PacketType::Status(system_state::SystemState::from_packet(packet)?),
+                0x86 => PacketType::CircuitStatusChange,
+                0x01 => PacketType::CircuitStatusResponse,
+                0xE1 => PacketType::RemoteLayoutRequest,
+                0x21 => PacketType::RemoteLayoutResponse,
+                0x05 => PacketType::ClockBroadcast,
+                0x07 => PacketType::PumpStatus,
+                _ => PacketType::Unknown,
+            }
+        })
     }
 
 }
