@@ -1,7 +1,7 @@
-use crate::{config, pool::message};
+use crate::pool::message;
 use crate::pool::message::system_state::SystemState;
 use chrono::{DateTime, Local};
-use log::{debug, error, trace, warn};
+use log::{debug, error};
 use serde::Serialize;
 use serial::{self, Error, SerialPort};
 use std::sync::atomic::{AtomicU32, Ordering};

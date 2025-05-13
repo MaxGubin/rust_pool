@@ -15,6 +15,7 @@ pub mod mobile_app;
 pub struct PoolConfig {
     pub comms: config_json::Comms,
     pub port_parameters: config_json::PortParameters,
+    pub system_parameters: config_json::SystemParameters,
 }
 
 pub fn read_configuration(config_path: &path::Path) -> io::Result<PoolConfig> {

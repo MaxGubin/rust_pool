@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // Controller parameters
 
@@ -80,8 +81,8 @@ pub struct PortParameters {
 }
 
 
-fn default_device_id() -> u32 {
-    
+fn default_device_id() -> u8 {
+  0x24 
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -91,5 +92,8 @@ pub struct SystemParameters {
     #[serde(default = "default_device_id")]
     pub controller_id: u8,
 
+    // Some devices that have names as "AUX1", it mapped to "Edge Pump"
+    #[serde(default)]
+    pub device_names: HashMap<String, String>,
 
 }

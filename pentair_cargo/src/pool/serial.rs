@@ -1,7 +1,9 @@
 use crate::pool::{message, PoolProtocolRW};
+use crate::config;
 use log::{debug, error, trace};
-use serial::{self};
+use serial::{self, SerialPort};
 use std::io::{ErrorKind, Read, Write, BufWriter};
+use std::fs::File;
 
 
 /// Creates a serial port from the  configuration.
@@ -110,8 +112,8 @@ impl PacketLogger {
         });
         PacketLogger { log_file, writer }
     }
-    fn log_message(&self, message: message::ProtocolPacket) -> Result<(), std::io::Error> {
-        if let Some(writer) = &self.writer {
+    fn log_message(&mut self, message: message::ProtocolPacket) -> Result<(), std::io::Error> {
+        if let Some(writer) = &mut self.writer {
             let message_str = format!("{:?}\n", message);
             writer.write_all(message_str.as_bytes())?;
             writer.flush()?;
@@ -125,7 +127,6 @@ impl PacketLogger {
 pub fn port_read_thread(mut port: serial::SystemPort, pool_protocol: PoolProtocolRW) {
     trace!("Pool monitor thread started");
 
-    let message_logger = PacketLogger::new(log_file); 
     loop {
         match scan_for_header(&mut port) {
             Ok(r) => {

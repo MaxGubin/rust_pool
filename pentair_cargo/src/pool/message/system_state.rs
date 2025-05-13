@@ -22,7 +22,7 @@ pub struct SystemState {
 
 
 impl SystemState {
-    fn new() -> SystemState {
+    pub fn new() -> SystemState {
         SystemState {
             pool_on: false,
             spa_on: false,

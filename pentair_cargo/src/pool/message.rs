@@ -18,7 +18,7 @@ pub enum PacketType {
 #[derive(Clone, Debug)]
 pub struct ProtocolPacket{
     packet_content: Vec<u8>,  
-    decoded: PacketType
+    pub decoded: PacketType
 }
 
 // Block protocol offsets in the packet without any header.
