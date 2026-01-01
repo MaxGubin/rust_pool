@@ -13,6 +13,7 @@ use tower_http::services::ServeDir;
 mod config;
 mod pool;
 mod ui;
+mod matter;
 
 // Command line arguments
 #[derive(Parser)]
@@ -61,6 +62,7 @@ fn main() {
         whoami::username(),
     );
     info_external_ip();
+    trace!("Reading configuration from {}", args.config.to_str().unwrap());
     let config = config::read_configuration(&args.config).expect("Failed to read configuration");
     trace!("Configuration loaded: {:?}", config);
 

@@ -52,3 +52,12 @@ It's needed to install libssl-dev
 sudo apt-get install libssl-dev
 
 ```
+
+# Matter 
+
+Idea - don't have an android application but only matter support
+
+https://console.home.google.com/u/1/projects/pool-controller-b8948/matter/test
+
+Setting up an application
+https://developers.home.google.com/codelabs/matter-device-virtual#3

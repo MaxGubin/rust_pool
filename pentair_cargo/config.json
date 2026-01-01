@@ -6,5 +6,8 @@
     },
     "port_parameters": {
         "port_name": "/dev/ttyUSB0"
-    }
+    },
+    "system_parameters": {
+
+    }    
 }
