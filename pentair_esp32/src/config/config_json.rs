@@ -1,0 +1,98 @@
+use esp_idf_hal::uart::{self, UartDataBits, UartParity, UartStopBits};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+// Controller parameters
+
+fn default_enabled() -> bool {
+    true
+}
+fn default_baud_rate() -> usize {
+    9600
+}
+fn default_char_size() -> u32 {
+    8
+}
+fn default_parity() -> String {
+    "None".to_string()
+}
+fn default_stop_bits() -> u32 {
+    1
+}
+
+fn default_timeout_msec() -> u32 {
+    1000
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Comms {
+    /// The http listen_address
+    pub http_listen_address: Option<String>,
+
+    // If not empty, we use https.
+    //
+    pub https_listen_address: Option<String>,
+    pub cert_path: Option<String>,
+    pub key_path: Option<String>,
+}
+
+pub fn decode_char_size(char_size: u32) -> UartDataBits {
+    match char_size {
+        5 => UartDataBits::DataBits5,
+        6 => UartDataBits::DataBits6,
+        7 => UartDataBits::DataBits7,
+        8 => UartDataBits::DataBits8,
+        _ => panic!("Invalid char size"),
+    }
+}
+
+pub fn decode_parity(parity: &str) -> UartParity {
+    match parity {
+        "None" => UartParity::ParityNone,
+        "Odd" => UartParity::ParityOdd,
+        "Even" => UartParity::ParityEven,
+        _ => panic!("Invalid parity"),
+    }
+}
+
+pub fn decode_stop_bits(stop_bits: u32) -> UartStopBits {
+    match stop_bits {
+        1 => UartStopBits::StopBits1,
+        2 => UartStopBits::StopBits2,
+        _ => panic!("Invalid stop bits"),
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct PortParameters {
+    pub port_name: String,
+
+    #[serde(default = "default_baud_rate")]
+    pub baud_rate: usize,
+    #[serde(default = "default_char_size")]
+    pub char_size: u32,
+    #[serde(default = "default_parity")]
+    pub parity: String,
+    #[serde(default = "default_stop_bits ")]
+    pub stop_bits: u32,
+    #[serde(default = "default_timeout_msec")]
+    pub timeout_msec: u32,
+    // If not None, the packages will be saved to this file.
+    pub samples_file: Option<String>,
+}
+
+fn default_device_id() -> u8 {
+    0x24
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct SystemParameters {
+    pub sample_file: Option<String>,
+
+    #[serde(default = "default_device_id")]
+    pub controller_id: u8,
+
+    // Some devices that have names as "AUX1", it mapped to "Edge Pump"
+    #[serde(default)]
+    pub device_names: HashMap<String, String>,
+}

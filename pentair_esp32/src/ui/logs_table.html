@@ -1,0 +1,16 @@
+<table><thead>
+    <tr>
+      <th>Timestamp</th>
+      <th>Message</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for log in logs %}
+      <tr>
+        <td>{{ log.timestamp.format("%Y-%m-%d %H:%M:%S").to_string() }}</td>
+        <td>{{ self.vec_u8_to_hex_string(log.packet_content) }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<button type="submit" onclick=closeLog()>Close/button>

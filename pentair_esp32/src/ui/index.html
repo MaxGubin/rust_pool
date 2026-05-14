@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+    <head>
+    <link href="/assets/style.css" rel="stylesheet" type="text/css">
+    </head>
+    <body>
+      <div class="connecting" id="connection-status">Connecting</div>
+	    <h3>Controls</h3>
+	    {% for control in controls %}
+	    {%let (id, state) = control %}
+	    {% if state %}
+	    	<button type="submit" class="button on" onclick=toggleState("{{ id }}") id="{{ id }}"> {{ id }} </button>
+	    {% else %}
+	    	<button type="submit" class="button" onclick=toggleState("{{ id }}") id="{{ id }}"> {{ id }} </button>
+	    {% endif %}
+	    {% endfor %}
+	    <h3>Temperatures</h3>
+	    {% for temperature in temperatures %}
+	    {%let (name, value) = temperature %}
+	    {{ name }}: {{ value }} <br>
+	    {% endfor %}
+      <div id="logdiv" class="logdiv"  > </div>
+      <button type="submit" onclick=showLog()>Log</button>
+	    <script src="/assets/script.js"></script>
+      <script>
+            //setInterval(read_state, 1000);
+            window.sharedWebSocket = setupWebSocket();
+            console.log('Script loaded');
+      </script>
+    </body>
+</html>
