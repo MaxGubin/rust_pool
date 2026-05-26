@@ -23,14 +23,14 @@ native = ["esp-idf-sys/native"]
 esp-idf-sys = { version = "0.33", features = ["binstart"] }
 esp-idf-hal = "0.42"
 esp-idf-svc = { version = "0.42", features = ["experimental", "ws"] }
-embedded-svc = { version = "0.26", features = ["ws"] }
+embedded-svc = "0.26"
 log = "0.4"
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 embedded-hal = "0.2.7"
 heapless = { version = "0.7", default-features = false }
-ufmt = "0.5"
+ufmt = "0.2.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 embassy-sync = { version = "0.5", features = ["std", "log"] }
